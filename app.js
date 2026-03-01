@@ -1,21 +1,14 @@
 /* ============================
-   Dime Offline (Lite) - Vanilla JS
+   Dime Offline (Lite) - Revised
+   - Default view: ALL-TIME totals (not per month)
+   - Still supports Month view toggle
+   - Stores Starting Amount + Remaining Balance
+   - Full transaction list (date + type/category + notes)
    Offline storage: localStorage
    ============================ */
 
-const STORAGE_KEY = "dime_offline_v1_transactions";
-
-const STARTING_BALANCE_KEY = "dime_offline_v1_starting_balance";
-
-function loadStartingBalance(){
-  const raw = localStorage.getItem(STARTING_BALANCE_KEY);
-  const n = raw === null ? 0 : Number(raw);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function saveStartingBalance(val){
-  localStorage.setItem(STARTING_BALANCE_KEY, String(val));
-}
+const STORAGE_KEY = "dime_offline_v2_transactions";
+const STARTING_BALANCE_KEY = "dime_offline_v2_starting_balance";
 
 const CATEGORIES = [
   { key: "Groceries", color: "#7ad5cb" },
@@ -30,38 +23,42 @@ const CATEGORIES = [
 const $ = (id) => document.getElementById(id);
 
 let state = {
-  currentMonth: new Date(),
-  chartMode: "expense",
+  currentMonth: startOfMonth(new Date()),
+  scope: "all",        // "all" | "month"
+  chartMode: "expense",// "expense" | "income"
   typeToAdd: "expense",
-  transactions: [],
+  listFilter: "all",   // "all" | "expense" | "income"
   startingBalance: 0,
+  transactions: [],
 };
 
 function pad2(n){ return String(n).padStart(2,"0"); }
-
-function monthKey(d){
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`; // YYYY-MM
-}
-
-function startOfMonth(d){
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
+function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function monthKey(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`; }
 function formatMoney(n){
   const sign = n < 0 ? "-" : "";
   const abs = Math.abs(n);
   return `${sign}$${abs.toFixed(2)}`;
 }
 
+function loadStartingBalance(){
+  const raw = localStorage.getItem(STARTING_BALANCE_KEY);
+  const n = raw === null ? 0 : Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+function saveStartingBalance(val){
+  localStorage.setItem(STARTING_BALANCE_KEY, String(val));
+}
+
 function loadTx(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
   }catch{
     return [];
   }
 }
-
 function saveTx(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.transactions));
 }
@@ -70,10 +67,44 @@ function uid(){
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
+function setActiveTab(tab){
+  // buttons
+  $("tabSummary").classList.toggle("active", tab === "summary");
+  $("tabList").classList.toggle("active", tab === "list");
+  $("tabSettings").classList.toggle("active", tab === "settings");
+
+  // cards
+  $("summaryCard").classList.toggle("hidden", tab !== "summary");
+  $("listCard").classList.toggle("hidden", tab !== "list");
+  $("settingsCard").classList.toggle("hidden", tab !== "settings");
+
+  // bottom totals stay visible (matches Dime feel)
+  render();
+}
+
 function setMonthTitle(){
+  if (state.scope === "all"){
+    $("monthTitle").textContent = "All Time";
+    $("prevMonth").disabled = true;
+    $("nextMonth").disabled = true;
+    $("prevMonth").style.opacity = "0.45";
+    $("nextMonth").style.opacity = "0.45";
+    return;
+  }
+
+  $("prevMonth").disabled = false;
+  $("nextMonth").disabled = false;
+  $("prevMonth").style.opacity = "1";
+  $("nextMonth").style.opacity = "1";
+
   const d = state.currentMonth;
   const monthName = d.toLocaleString(undefined, { month:"long" });
   $("monthTitle").textContent = `${monthName} ${d.getFullYear()}`;
+}
+
+function setScopeButtons(){
+  $("scopeAll").classList.toggle("active", state.scope === "all");
+  $("scopeMonth").classList.toggle("active", state.scope === "month");
 }
 
 function setModeButtons(){
@@ -86,15 +117,21 @@ function setTypeButtons(){
   $("typeIncome").classList.toggle("active", state.typeToAdd === "income");
 }
 
+function setListFilterButtons(){
+  $("listAll").classList.toggle("active", state.listFilter === "all");
+  $("listExpenses").classList.toggle("active", state.listFilter === "expense");
+  $("listIncome").classList.toggle("active", state.listFilter === "income");
+}
+
 function openModal(){
   $("modalBackdrop").classList.remove("hidden");
   $("modal").classList.remove("hidden");
 
-  // default date: today (but editable to any date)
+  // default date today (editable to any date)
   const today = new Date();
   $("date").value = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
 
-  // fill categories
+  // categories
   const sel = $("category");
   sel.innerHTML = "";
   for (const c of CATEGORIES){
@@ -114,29 +151,60 @@ function closeModal(){
   $("modal").classList.add("hidden");
 }
 
-function getMonthTx(){
+/* ===== Scope helpers ===== */
+
+function txDateObj(t){ return new Date(t.date + "T00:00:00"); }
+
+function getScopedTx(){
+  if (state.scope === "all") return state.transactions;
+
   const key = monthKey(state.currentMonth);
   return state.transactions.filter(t => t.monthKey === key);
 }
 
-function totalsForMonth(){
-  const tx = getMonthTx();
-  const income = tx.filter(t => t.type === "income").reduce((a,b)=>a+b.amount,0);
-  const expense = tx.filter(t => t.type === "expense").reduce((a,b)=>a+b.amount,0);
+/* Carry-in: used ONLY for Month scope (remaining should include previous months) */
+function carryInForMonth(){
+  const start = startOfMonth(state.currentMonth);
+  let netBefore = 0;
 
-  const carryIn = carryInForMonth();
-  const balance = carryIn + income - expense;
+  for (const t of state.transactions){
+    const td = txDateObj(t);
+    if (td < start){
+      netBefore += (t.type === "income" ? t.amount : -t.amount);
+    }
+  }
 
-  return { income, expense, balance, carryIn };
+  return state.startingBalance + netBefore;
+}
+
+/* ===== Totals (all-time or month) ===== */
+
+function totalsForScope(){
+  const scoped = getScopedTx();
+
+  const income = scoped.filter(t => t.type === "income").reduce((a,b)=>a+b.amount,0);
+  const expense = scoped.filter(t => t.type === "expense").reduce((a,b)=>a+b.amount,0);
+
+  if (state.scope === "all"){
+    const balance = state.startingBalance + income - expense;
+    return { income, expense, balance, carryIn: null };
+  } else {
+    const carryIn = carryInForMonth();
+    const balance = carryIn + income - expense;
+    return { income, expense, balance, carryIn };
+  }
 }
 
 function categoryTotals(mode){
-  const tx = getMonthTx().filter(t => t.type === mode);
+  const scoped = getScopedTx().filter(t => t.type === mode);
+
   const map = new Map(CATEGORIES.map(c => [c.key, 0]));
-  for (const t of tx){
+  for (const t of scoped){
     map.set(t.category, (map.get(t.category) || 0) + t.amount);
   }
+
   const total = Array.from(map.values()).reduce((a,b)=>a+b,0);
+
   const rows = CATEGORIES
     .map(c => ({
       category: c.key,
@@ -146,7 +214,6 @@ function categoryTotals(mode){
     }))
     .filter(r => r.amount > 0);
 
-  // If no data, show empty ring
   return { total, rows };
 }
 
@@ -171,7 +238,6 @@ function drawDonut(rows, total){
   ctx.stroke();
 
   if (!rows.length || total <= 0){
-    // center text
     ctx.fillStyle = "rgba(233,238,252,.9)";
     ctx.font = "900 30px system-ui";
     ctx.textAlign = "center";
@@ -179,7 +245,6 @@ function drawDonut(rows, total){
     return;
   }
 
-  // segments
   let angle = -Math.PI/2;
   for (const r of rows){
     const seg = r.pct * Math.PI * 2;
@@ -207,7 +272,7 @@ function drawDonut(rows, total){
 
 /* ===== Breakdown list ===== */
 
-function renderBreakdown(rows, total){
+function renderBreakdown(rows){
   const el = $("breakdown");
   el.innerHTML = "";
 
@@ -216,7 +281,7 @@ function renderBreakdown(rows, total){
     empty.style.color = "rgba(174,184,214,.9)";
     empty.style.padding = "12px 6px 6px";
     empty.style.fontWeight = "700";
-    empty.textContent = "No transactions for this month yet.";
+    empty.textContent = "No transactions in this view yet.";
     el.appendChild(empty);
     return;
   }
@@ -244,49 +309,127 @@ function renderBreakdown(rows, total){
   }
 }
 
-function renderTotals(){
-  const { income, expense, balance, carryIn } = totalsForMonth();
+/* ===== Transaction List ===== */
 
-  $("incomeTotal").textContent = formatMoney(income);
-  $("expenseTotal").textContent = formatMoney(expense);
+function renderList(){
+  const list = $("txList");
+  list.innerHTML = "";
 
-  // this is now the "end balance" for the selected month (carryover + this month net)
-  $("balanceTotal").textContent = formatMoney(balance);
-  $("balanceTotal").classList.toggle("negative", balance < 0);
+  let items = getScopedTx().slice();
 
-  // NEW: carryover viewer (start-of-month money available)
-  $("carryIn").textContent = formatMoney(carryIn);
-}
-
-function carryInForMonth(){
-  const start = startOfMonth(state.currentMonth);
-  let netBefore = 0;
-
-  for (const t of state.transactions){
-    const td = new Date(t.date + "T00:00:00");
-    if (td < start){
-      netBefore += (t.type === "income" ? t.amount : -t.amount);
-    }
+  if (state.listFilter !== "all"){
+    items = items.filter(t => t.type === state.listFilter);
   }
 
-  return state.startingBalance + netBefore;
+  // newest first (by date, then createdAt)
+  items.sort((a,b) => {
+    const ad = txDateObj(a).getTime();
+    const bd = txDateObj(b).getTime();
+    if (bd !== ad) return bd - ad;
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
+
+  const scopeLabel = state.scope === "all" ? "All time" : $("monthTitle").textContent;
+  $("listMeta").textContent = `${scopeLabel} • ${items.length} item(s)`;
+
+  if (!items.length){
+    const empty = document.createElement("div");
+    empty.style.color = "rgba(174,184,214,.9)";
+    empty.style.fontWeight = "800";
+    empty.style.padding = "10px 2px";
+    empty.textContent = "No transactions to show.";
+    list.appendChild(empty);
+    return;
+  }
+
+  for (const t of items){
+    const item = document.createElement("div");
+    item.className = "tx-item";
+
+    const left = document.createElement("div");
+    const main = document.createElement("div");
+    main.className = "tx-main";
+    main.textContent = `${t.category}`;
+
+    const sub = document.createElement("div");
+    sub.className = "tx-sub";
+    const note = t.notes ? ` • ${t.notes}` : "";
+    sub.textContent = `${t.date}${note}`;
+
+    left.appendChild(main);
+    left.appendChild(sub);
+
+    const actions = document.createElement("div");
+    actions.className = "tx-actions";
+
+    const amt = document.createElement("div");
+    amt.className = `tx-amt ${t.type}`;
+    amt.textContent = t.type === "expense" ? `-${formatMoney(t.amount).replace("-", "")}` : `+${formatMoney(t.amount).replace("-", "")}`;
+
+    const del = document.createElement("button");
+    del.className = "tx-del";
+    del.textContent = "Delete";
+    del.addEventListener("click", () => {
+      const ok = confirm("Delete this transaction?");
+      if (!ok) return;
+      state.transactions = state.transactions.filter(x => x.id !== t.id);
+      saveTx();
+      render();
+    });
+
+    actions.appendChild(amt);
+    actions.appendChild(del);
+
+    item.appendChild(left);
+    item.appendChild(actions);
+    list.appendChild(item);
+  }
+}
+
+/* ===== Render totals + views ===== */
+
+function renderTotals(){
+  const { income, expense, balance, carryIn } = totalsForScope();
+
+  // Starting + Remaining viewer (top)
+  $("startingValue").textContent = formatMoney(state.startingBalance);
+  $("remainingValue").textContent = formatMoney(balance);
+
+  // show carry-in only when Month view is active
+  if (state.scope === "month"){
+    $("carryInfo").textContent = `Carry-in for month: ${formatMoney(carryIn)}`;
+  } else {
+    $("carryInfo").textContent = "";
+  }
+
+  // Bottom totals reflect the CURRENT VIEW (All or Month)
+  $("incomeTotal").textContent = formatMoney(income);
+  $("expenseTotal").textContent = formatMoney(expense);
+  $("balanceTotal").textContent = formatMoney(balance);
+  $("balanceTotal").classList.toggle("negative", balance < 0);
 }
 
 function render(){
   setMonthTitle();
+  setScopeButtons();
   setModeButtons();
+  setListFilterButtons();
 
-  const mode = state.chartMode; // expense or income
-  const { total, rows } = categoryTotals(mode);
-
+  // Summary chart/breakdown
+  const { total, rows } = categoryTotals(state.chartMode);
   drawDonut(rows, total);
-  renderBreakdown(rows, total);
+  renderBreakdown(rows);
   $("totalValue").textContent = formatMoney(total);
 
+  // Totals + list + settings
   renderTotals();
+  renderList();
+
+  // Settings input
+  $("startingInput").value = String(state.startingBalance.toFixed(2));
 }
 
-/* ===== Add / Export / Import ===== */
+/* ===== Add Transaction ===== */
 
 function addTransactionFromModal(){
   const amount = Number($("amount").value);
@@ -306,7 +449,7 @@ function addTransactionFromModal(){
   const d = new Date(date + "T00:00:00");
   const tx = {
     id: uid(),
-    type: state.typeToAdd,                 // expense|income
+    type: state.typeToAdd, // expense|income
     amount: Number(amount),
     date,
     monthKey: monthKey(d),
@@ -318,17 +461,22 @@ function addTransactionFromModal(){
   state.transactions.unshift(tx);
   saveTx();
 
-  // If user added a different month, jump to it (optional, but nice)
-  state.currentMonth = startOfMonth(d);
+  // If user is in Month view, jump to that month for convenience
+  if (state.scope === "month"){
+    state.currentMonth = startOfMonth(d);
+  }
 
   closeModal();
   render();
 }
 
+/* ===== Export / Import / Clear ===== */
+
 function exportBackup(){
   const payload = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
+    startingBalance: state.startingBalance,
     transactions: state.transactions
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
@@ -347,7 +495,22 @@ function importBackup(file){
     try{
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.transactions)) throw new Error("Invalid file");
+
       state.transactions = data.transactions;
+      // restore starting balance if present
+      if (Number.isFinite(Number(data.startingBalance))){
+        state.startingBalance = Number(data.startingBalance);
+        saveStartingBalance(state.startingBalance);
+      }
+
+      // ensure monthKey exists (migration safety)
+      for (const t of state.transactions){
+        if (!t.monthKey && t.date){
+          const d = new Date(t.date + "T00:00:00");
+          t.monthKey = monthKey(d);
+        }
+      }
+
       saveTx();
       alert("Import successful.");
       render();
@@ -358,41 +521,90 @@ function importBackup(file){
   reader.readAsText(file);
 }
 
-/* ===== Events ===== */
+function clearAllData(){
+  const ok = confirm("This will delete ALL transactions and starting amount on this device. Continue?");
+  if (!ok) return;
+
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(STARTING_BALANCE_KEY);
+
+  state.transactions = [];
+  state.startingBalance = 0;
+
+  alert("All data cleared.");
+  render();
+}
+
+/* ===== Init ===== */
 
 function init(){
-  state.currentMonth = startOfMonth(new Date());
+  state.startingBalance = loadStartingBalance();
   state.transactions = loadTx();
 
-  // month nav
+  // migration safety: ensure monthKey exists
+  for (const t of state.transactions){
+    if (!t.monthKey && t.date){
+      const d = new Date(t.date + "T00:00:00");
+      t.monthKey = monthKey(d);
+    }
+  }
+  saveTx();
+
+  // Tabs
+  $("tabSummary").addEventListener("click", () => setActiveTab("summary"));
+  $("tabList").addEventListener("click", () => setActiveTab("list"));
+  $("tabSettings").addEventListener("click", () => setActiveTab("settings"));
+
+  // Month nav (only meaningful in Month scope)
   $("prevMonth").addEventListener("click", () => {
+    if (state.scope !== "month") return;
     const d = state.currentMonth;
     state.currentMonth = startOfMonth(new Date(d.getFullYear(), d.getMonth()-1, 1));
     render();
   });
   $("nextMonth").addEventListener("click", () => {
+    if (state.scope !== "month") return;
     const d = state.currentMonth;
     state.currentMonth = startOfMonth(new Date(d.getFullYear(), d.getMonth()+1, 1));
     render();
   });
 
-  // chart mode
+  // Scope toggle (DEFAULT = ALL)
+  $("scopeAll").addEventListener("click", () => { state.scope = "all"; render(); });
+  $("scopeMonth").addEventListener("click", () => { state.scope = "month"; render(); });
+
+  // Chart mode
   $("modeExpenses").addEventListener("click", () => { state.chartMode = "expense"; render(); });
   $("modeIncome").addEventListener("click", () => { state.chartMode = "income"; render(); });
 
-  // open/close modal
+  // List filter
+  $("listAll").addEventListener("click", () => { state.listFilter = "all"; render(); });
+  $("listExpenses").addEventListener("click", () => { state.listFilter = "expense"; render(); });
+  $("listIncome").addEventListener("click", () => { state.listFilter = "income"; render(); });
+
+  // Add modal
   $("openAdd").addEventListener("click", openModal);
   $("closeAdd").addEventListener("click", closeModal);
   $("modalBackdrop").addEventListener("click", closeModal);
 
-  // type in modal
   $("typeExpense").addEventListener("click", () => { state.typeToAdd = "expense"; setTypeButtons(); });
   $("typeIncome").addEventListener("click", () => { state.typeToAdd = "income"; setTypeButtons(); });
 
-  // save
   $("saveTx").addEventListener("click", addTransactionFromModal);
 
-  // export/import
+  // Settings actions
+  $("saveStarting").addEventListener("click", () => {
+    const val = Number($("startingInput").value);
+    if (!Number.isFinite(val)){
+      alert("Please enter a valid number for Starting Amount.");
+      return;
+    }
+    state.startingBalance = val;
+    saveStartingBalance(val);
+    render();
+    alert("Starting Amount saved.");
+  });
+
   $("exportData").addEventListener("click", exportBackup);
   $("importFile").addEventListener("change", (e) => {
     const file = e.target.files?.[0];
@@ -400,31 +612,15 @@ function init(){
     e.target.value = "";
   });
 
-  // register service worker (offline)
+  $("clearAll").addEventListener("click", clearAllData);
+
+  // Offline
   if ("serviceWorker" in navigator){
     navigator.serviceWorker.register("sw.js").catch(()=>{});
   }
 
-  render();
+  // Start on Summary tab
+  setActiveTab("summary");
 }
 
 init();
-// Load starting balance once
-state.startingBalance = loadStartingBalance();
-
-// Settings button = set starting balance
-$("tabSettings").addEventListener("click", () => {
-  const current = state.startingBalance.toFixed(2);
-  const input = prompt("Set starting money (carryover base):", current);
-  if (input === null) return;
-
-  const val = Number(input);
-  if (!Number.isFinite(val)) {
-    alert("Please enter a valid number.");
-    return;
-  }
-
-  state.startingBalance = val;
-  saveStartingBalance(val);
-  render();
-});
