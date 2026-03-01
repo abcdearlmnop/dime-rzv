@@ -2,162 +2,125 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Dime-ish Offline</title>
-
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#ffffff" />
-  <link rel="stylesheet" href="./styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Dime Offline (Lite)</title>
 </head>
-
 <body>
-  <!-- HOME (Image 1 look) -->
-  <section id="homeView" class="view view--active">
-    <header class="homeTop">
-      <button class="topIconBtn" id="searchBtn" aria-label="Search">
-        <span class="icon">🔎</span>
-      </button>
-
-      <div class="homeTopSpacer"></div>
-
-      <button class="topIconBtn" id="filterBtn" aria-label="Filter by month">
-        <span class="icon">▽</span>
-      </button>
-    </header>
-
-    <!-- Big total -->
-    <div class="bigTotalWrap">
-      <div class="bigTotal" id="bigTotal">
-        <span class="bigSign" id="bigSign">+</span><span class="bigCurrency">₱</span><span class="bigAmount" id="bigAmount">0.00</span>
-      </div>
-      <div class="bigTotalSub" id="bigTotalSub">This month</div>
-    </div>
-
-    <!-- List -->
-    <main class="listWrap">
-      <div id="list"></div>
-      <div id="emptyHome" class="emptyHome">No entries yet. Tap + to add.</div>
-    </main>
-
-    <!-- Bottom nav with center + (focus area in screenshot) -->
-    <nav class="bottomNav">
-      <button class="navBtn navBtn--active" id="navHome" aria-label="Home">💬</button>
-      <button class="navBtn" id="navStats" aria-label="Stats">📊</button>
-
-      <button class="navPlus" id="openAddBtn" aria-label="Add">+</button>
-
-      <button class="navBtn" id="navCats" aria-label="Categories">⬛⬛</button>
-      <button class="navBtn" id="navSettings" aria-label="Settings">⚙️</button>
-    </nav>
-  </section>
-
-  <!-- ADD (Image 2 look) -->
-  <section id="addView" class="view">
-    <header class="addTop">
-      <button class="topIconBtn" id="closeAddBtn" aria-label="Close">
-        <span class="icon">✕</span>
-      </button>
-
-      <div class="segmented" role="tablist" aria-label="Type">
-        <button class="segBtn segBtn--active" id="segExpense" role="tab" aria-selected="true">Expense</button>
-        <button class="segBtn" id="segIncome" role="tab" aria-selected="false">Income</button>
+  <div class="app">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">🦉</div>
       </div>
 
-      <button class="topIconBtn" id="swapTypeBtn" aria-label="Swap type">
-        <span class="icon">🔁</span>
-      </button>
-    </header>
-
-    <!-- Amount block -->
-    <div class="amountBlock">
-      <div class="amountRow">
-        <span class="amountCurrency">₱</span>
-        <span class="amountValue" id="amountValue">0</span>
-
-        <button class="miniIconBtn" id="clearAmountBtn" aria-label="Clear amount">
-          ✕
+      <div class="top-actions">
+        <button class="icon-btn active" id="tabSummary" title="Summary">
+          <span>◔</span>
+        </button>
+        <button class="icon-btn" id="tabList" title="Transactions">
+          <span>▦</span>
+        </button>
+        <button class="icon-btn" id="tabSettings" title="Settings">
+          <span>⚙</span>
         </button>
       </div>
+    </header>
 
-      <button class="notePill" id="addNoteBtn" type="button">
-        ☰ Add Note
-      </button>
+    <!-- Month row -->
+    <section class="month-row">
+      <button class="nav-btn" id="prevMonth" aria-label="Previous month">←</button>
+      <div class="month-title" id="monthTitle">February 2025</div>
+      <button class="nav-btn" id="nextMonth" aria-label="Next month">→</button>
+    </section>
 
-      <input class="noteInput hidden" id="noteInput" type="text" placeholder="Note…" maxlength="60" />
-    </div>
+    <!-- Add -->
+    <section class="add-row">
+      <button class="pill-btn" id="openAdd">＋ Add</button>
+      <div class="segmented" role="tablist" aria-label="Chart mode">
+        <button class="seg-btn active" id="modeExpenses">Expenses</button>
+        <button class="seg-btn" id="modeIncome">Income</button>
+      </div>
+    </section>
 
-    <!-- Date/Time + Category row -->
-    <div class="metaRow">
-      <button class="metaBtn metaBtn--left" id="dateBtn" type="button">
-        🗓 <span id="dateLabel">Today</span>
-      </button>
-
-      <button class="metaBtn metaBtn--mid" id="timeBtn" type="button">
-        <span id="timeLabel">--:--</span>
-      </button>
-
-      <button class="metaBtn metaBtn--right" id="categoryBtn" type="button">
-        ◻︎ <span id="categoryLabel">Category</span>
-      </button>
-    </div>
-
-    <!-- Hidden native pickers (full-year editable calendar) -->
-    <input id="datePicker" class="hiddenPicker" type="date" />
-    <input id="timePicker" class="hiddenPicker" type="time" />
-
-    <!-- Keypad -->
-    <div class="keypad">
-      <button class="key" data-k="1">1</button>
-      <button class="key" data-k="2">2</button>
-      <button class="key" data-k="3">3</button>
-
-      <button class="key" data-k="4">4</button>
-      <button class="key" data-k="5">5</button>
-      <button class="key" data-k="6">6</button>
-
-      <button class="key" data-k="7">7</button>
-      <button class="key" data-k="8">8</button>
-      <button class="key" data-k="9">9</button>
-
-      <button class="key" data-k=".">.</button>
-      <button class="key" data-k="0">0</button>
-      <button class="key key--ok" id="saveBtn">✓</button>
-    </div>
-  </section>
-
-  <!-- Category sheet -->
-  <div id="sheetBackdrop" class="sheetBackdrop hidden">
-    <div class="sheet">
-      <div class="sheetHeader">
-        <div class="sheetTitle">Choose Category</div>
-        <button class="topIconBtn" id="closeSheetBtn" aria-label="Close sheet"><span class="icon">✕</span></button>
+    <!-- Card (chart + breakdown) -->
+    <main class="card">
+      <div class="chart-wrap">
+        <canvas id="donut" width="520" height="520" aria-label="Spending donut chart"></canvas>
       </div>
 
-      <div id="catList" class="catList"></div>
+      <div class="breakdown" id="breakdown"></div>
 
-      <div class="sheetAdd">
-        <input id="newCatName" class="sheetInput" type="text" placeholder="New category name…" maxlength="24" />
-        <input id="newCatIcon" class="sheetInput sheetInput--icon" type="text" placeholder="😀" maxlength="2" />
-        <button id="addCatConfirm" class="sheetAddBtn" type="button">Add</button>
+      <div class="divider"></div>
+
+      <div class="total-row">
+        <div class="total-label">Total:</div>
+        <div class="total-value" id="totalValue">$0.00</div>
       </div>
+    </main>
+
+    <!-- Bottom totals -->
+    <footer class="bottom">
+      <div class="mini-card">
+        <div class="mini-title">Income</div>
+        <div class="mini-value" id="incomeTotal">$0.00</div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-title">Expenses</div>
+        <div class="mini-value" id="expenseTotal">$0.00</div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-title">Balance</div>
+        <div class="mini-value" id="balanceTotal">$0.00</div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Add Transaction Modal -->
+  <div class="modal-backdrop hidden" id="modalBackdrop"></div>
+  <div class="modal hidden" id="modal">
+    <div class="modal-header">
+      <div class="modal-title">Add Transaction</div>
+      <button class="icon-btn" id="closeAdd" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="segmented full">
+        <button class="seg-btn active" id="typeExpense">Expense</button>
+        <button class="seg-btn" id="typeIncome">Income</button>
+      </div>
+
+      <label class="field">
+        <span>Amount</span>
+        <input id="amount" type="number" inputmode="decimal" placeholder="0.00" step="0.01" />
+      </label>
+
+      <label class="field">
+        <span>Date</span>
+        <input id="date" type="date" />
+      </label>
+
+      <label class="field">
+        <span>Category</span>
+        <select id="category"></select>
+      </label>
+
+      <label class="field">
+        <span>Notes (optional)</span>
+        <input id="notes" type="text" placeholder="e.g., lunch with friends" />
+      </label>
+
+      <button class="primary" id="saveTx">Save</button>
+      <button class="ghost" id="exportData">Export Backup (JSON)</button>
+      <label class="import">
+        Import Backup (JSON)
+        <input id="importFile" type="file" accept="application/json" />
+      </label>
     </div>
   </div>
 
-  <!-- Month filter -->
-  <div id="monthBackdrop" class="sheetBackdrop hidden">
-    <div class="sheet">
-      <div class="sheetHeader">
-        <div class="sheetTitle">Pick Month</div>
-        <button class="topIconBtn" id="closeMonthBtn" aria-label="Close"><span class="icon">✕</span></button>
-      </div>
-
-      <div class="monthPickWrap">
-        <input id="monthPicker" class="monthPicker" type="month" />
-        <button id="applyMonthBtn" class="sheetAddBtn" type="button">Apply</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="./app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
