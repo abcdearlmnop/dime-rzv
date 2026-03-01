@@ -29,31 +29,45 @@
       </div>
     </header>
 
-    <!-- Month row -->
+    <!-- Scope + Month row -->
     <section class="month-row">
       <button class="nav-btn" id="prevMonth" aria-label="Previous month">←</button>
-      <div class="month-title" id="monthTitle">February 2025</div>
+      <div class="month-title" id="monthTitle">All Time</div>
       <button class="nav-btn" id="nextMonth" aria-label="Next month">→</button>
     </section>
 
-    <!-- Add -->
+    <!-- Add + toggles -->
     <section class="add-row">
       <button class="pill-btn" id="openAdd">＋ Add</button>
+
+      <div class="segmented" role="tablist" aria-label="Scope">
+        <button class="seg-btn active" id="scopeAll">All</button>
+        <button class="seg-btn" id="scopeMonth">Month</button>
+      </div>
+
       <div class="segmented" role="tablist" aria-label="Chart mode">
         <button class="seg-btn active" id="modeExpenses">Expenses</button>
         <button class="seg-btn" id="modeIncome">Income</button>
       </div>
     </section>
 
-    <!-- Card (chart + breakdown) -->
-    <main class="card">
-      <div class="carryover">
-        <div class="carryover-label">Carryover</div>
-        <div class="carryover-value" id="carryIn">$0.00</div>
-       </div>
-      
+    <!-- SUMMARY VIEW -->
+    <main class="card" id="summaryCard">
+      <!-- Starting + Remaining -->
+      <div class="viewer">
+        <div class="viewer-col">
+          <div class="viewer-label">Starting</div>
+          <div class="viewer-value" id="startingValue">$0.00</div>
+          <div class="viewer-sub" id="carryInfo"></div>
+        </div>
+        <div class="viewer-col right">
+          <div class="viewer-label">Remaining</div>
+          <div class="viewer-value" id="remainingValue">$0.00</div>
+        </div>
+      </div>
+
       <div class="chart-wrap">
-        <canvas id="donut" width="520" height="520" aria-label="Spending donut chart"></canvas>
+        <canvas id="donut" width="520" height="520" aria-label="Donut chart"></canvas>
       </div>
 
       <div class="breakdown" id="breakdown"></div>
@@ -61,9 +75,49 @@
       <div class="divider"></div>
 
       <div class="total-row">
-        <div class="total-label">Total:</div>
+        <div class="total-label">Total (chart):</div>
         <div class="total-value" id="totalValue">$0.00</div>
       </div>
+    </main>
+
+    <!-- LIST VIEW -->
+    <main class="card hidden" id="listCard">
+      <div class="list-header">
+        <div class="list-title">Transactions</div>
+        <div class="segmented">
+          <button class="seg-btn active" id="listAll">All</button>
+          <button class="seg-btn" id="listExpenses">Expenses</button>
+          <button class="seg-btn" id="listIncome">Income</button>
+        </div>
+      </div>
+
+      <div class="list-meta" id="listMeta"></div>
+      <div class="tx-list" id="txList"></div>
+    </main>
+
+    <!-- SETTINGS VIEW -->
+    <main class="card hidden" id="settingsCard">
+      <div class="settings-title">Settings</div>
+
+      <label class="field">
+        <span>Starting Amount (base money)</span>
+        <input id="startingInput" type="number" inputmode="decimal" step="0.01" placeholder="0.00" />
+      </label>
+
+      <button class="primary" id="saveStarting">Save Starting Amount</button>
+
+      <div class="divider"></div>
+
+      <button class="ghost" id="exportData">Export Backup (JSON)</button>
+      <label class="import">
+        Import Backup (JSON)
+        <input id="importFile" type="file" accept="application/json" />
+      </label>
+
+      <div class="divider"></div>
+
+      <button class="danger" id="clearAll">Clear ALL data</button>
+      <div class="settings-note">This deletes transactions + starting amount on this device.</div>
     </main>
 
     <!-- Bottom totals -->
@@ -108,7 +162,7 @@
       </label>
 
       <label class="field">
-        <span>Category</span>
+        <span>Type (Category)</span>
         <select id="category"></select>
       </label>
 
@@ -118,11 +172,6 @@
       </label>
 
       <button class="primary" id="saveTx">Save</button>
-      <button class="ghost" id="exportData">Export Backup (JSON)</button>
-      <label class="import">
-        Import Backup (JSON)
-        <input id="importFile" type="file" accept="application/json" />
-      </label>
     </div>
   </div>
 
