@@ -334,3 +334,74 @@ body{
 .import input{ display:none; }
 
 .hidden{ display:none; }
+
+/* ===== Added for All-Time + List + Settings ===== */
+.viewer{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding: 6px 6px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.viewer-col{ display:flex; flex-direction:column; gap:4px; }
+.viewer-col.right{ text-align:right; align-items:flex-end; }
+.viewer-label{ color: var(--muted); font-weight: 850; letter-spacing:.2px; }
+.viewer-value{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 950;
+  font-size: 20px;
+}
+.viewer-sub{ color: rgba(174,184,214,.9); font-weight:700; font-size:12px; min-height: 14px; }
+
+.list-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 10px;
+}
+.list-title{ font-weight: 950; font-size: 18px; }
+.list-meta{ color: var(--muted); font-weight:700; margin-bottom: 10px; }
+
+.tx-list{ display:flex; flex-direction:column; gap:10px; }
+.tx-item{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding: 12px;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.04);
+  border-radius: 14px;
+}
+.tx-main{ font-weight:900; font-size: 16px; }
+.tx-sub{ color: var(--muted); font-weight:700; margin-top:4px; font-size:12px; }
+.tx-amt{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 950;
+  text-align:right;
+}
+.tx-actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+.tx-del{
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 850;
+  cursor:pointer;
+}
+.tx-amt.expense{ color: rgba(255,122,120,.95); }
+.tx-amt.income{ color: rgba(122,213,203,.95); }
+
+.settings-title{ font-weight: 950; font-size: 18px; margin-bottom: 10px; }
+.danger{
+  height:46px;
+  border-radius: 12px;
+  border:1px solid rgba(255,90,95,.35);
+  background: rgba(255,90,95,.16);
+  color: var(--text);
+  font-weight: 950;
+  cursor:pointer;
+}
+.settings-note{ color: var(--muted); font-weight:700; font-size:12px; margin-top:8px; }
