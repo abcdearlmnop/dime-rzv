@@ -113,7 +113,12 @@ function renderEntryUI(){
   if(entry.dateISO === today){
     $("dateLabel").textContent = "Today";
   } else {
-    $("dateLabel").textContent = entry.dateISO;
+    // Format like: "Fri, 8 Aug"
+    const d = new Date(entry.dateISO + "T00:00:00");
+    const wk = d.toLocaleDateString("en-US", { weekday:"short" });
+    const day = d.getDate();
+    const mon = d.toLocaleDateString("en-US", { month:"short" });
+    $("dateLabel").textContent = `${wk}, ${day} ${mon}`;
   }
 
   $("timeLabel").textContent = entry.timeHHMM;
@@ -121,20 +126,30 @@ function renderEntryUI(){
 
 /* ---------- Keypad (Dime-style) ---------- */
 function buildKeypad(){
-  const keys = [
-    "1","2","3",
-    "4","5","6",
-    "7","8","9",
-    ".", "0", "ok"
-  ];
+  // EXACT order like Dime:
+  // 1 2 3
+  // 4 5 6
+  // 7 8 9
+  // . 0 ✓
+  const keys = ["1","2","3","4","5","6","7","8","9",".","0","ok"];
+
   const wrap = $("keypad");
   wrap.innerHTML = "";
 
   for(const k of keys){
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "key" + (k === "ok" ? " keyOk" : "");
-    btn.textContent = (k === "ok") ? "✓" : k;
+
+    if(k === "ok"){
+      btn.className = "key keyOk";
+      btn.textContent = "✓";
+    } else if(k === "."){
+      btn.className = "key keyDot";
+      btn.textContent = ".";
+    } else {
+      btn.className = "key";
+      btn.textContent = k;
+    }
 
     btn.addEventListener("click", () => {
       if(k === "ok") return saveTransactionFromEntry();
@@ -233,12 +248,14 @@ function ensureHiddenPickers(){
   dateInput.id = "hiddenDate";
   dateInput.style.position = "fixed";
   dateInput.style.left = "-9999px";
+  dateInput.style.top = "0";
 
   const timeInput = document.createElement("input");
   timeInput.type = "time";
   timeInput.id = "hiddenTime";
   timeInput.style.position = "fixed";
   timeInput.style.left = "-9999px";
+  timeInput.style.top = "0";
 
   document.body.appendChild(dateInput);
   document.body.appendChild(timeInput);
@@ -254,20 +271,28 @@ function ensureHiddenPickers(){
   });
 }
 
+// Tap date pill => open full calendar picker
 $("btnDate").addEventListener("click", () => {
   ensureHiddenPickers();
   const dateInput = $("hiddenDate");
   dateInput.value = entry.dateISO;
-  dateInput.showPicker ? dateInput.showPicker() : dateInput.click();
+
+  // Modern Chrome Android supports showPicker()
+  if (dateInput.showPicker) dateInput.showPicker();
+  else dateInput.click();
 });
 
-$("timeLabel").addEventListener("click", (e) => {
-  // allow tapping time to change time like Dime
+// Tap time (new button) => open time picker
+$("timeBtn").addEventListener("click", (e) => {
+  e.preventDefault();
   e.stopPropagation();
+
   ensureHiddenPickers();
   const timeInput = $("hiddenTime");
   timeInput.value = entry.timeHHMM;
-  timeInput.showPicker ? timeInput.showPicker() : timeInput.click();
+
+  if (timeInput.showPicker) timeInput.showPicker();
+  else timeInput.click();
 });
 
 /* ---------- Save ---------- */
