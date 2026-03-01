@@ -1,9 +1,5 @@
-const LS_KEY = "dime_lite_v2";
+const LS_KEY = "dime_lite_v3";
 
-/**
- * Dime-like categories (simple)
- * You can expand / customize later.
- */
 const DEFAULT_CATS = [
   { name: "Groceries", emoji:"🛒", color:"#d9c7ff" },
   { name: "Food", emoji:"🍔", color:"#bfe0ff" },
@@ -19,16 +15,15 @@ const $ = (id) => document.getElementById(id);
 
 let state = loadState();
 
-// Add screen inputs
 let entry = {
-  type: "expense",      // "expense" | "income"
-  amountStr: "0",       // string used by keypad
+  type: "expense",
+  amountStr: "0",
   note: "",
   catId: null,
   dateISO: todayISO(),
+  timeHHMM: nowHHMM(),
 };
 
-// ---------- Storage ----------
 function loadState(){
   const raw = localStorage.getItem(LS_KEY);
   if(raw){
@@ -41,14 +36,13 @@ function loadState(){
       emoji: c.emoji,
       color: c.color
     })),
-    transactions: [] // { id, type, amount, note, catId, dateISO, timeHHMM, createdAt }
+    transactions: []
   };
 }
 function saveState(){
   localStorage.setItem(LS_KEY, JSON.stringify(state));
 }
 
-// ---------- Helpers ----------
 function peso(n){
   return new Intl.NumberFormat("en-PH", { style:"currency", currency:"PHP" }).format(n || 0);
 }
@@ -65,12 +59,17 @@ function nowHHMM(){
   const mm = String(d.getMinutes()).padStart(2,"0");
   return `${hh}:${mm}`;
 }
-function parseAmount(amountStr){
-  const n = Number(amountStr);
+function parseAmount(s){
+  const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;")
+    .replaceAll(">","&gt;").replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 function formatDayHeader(dateISO){
-  // e.g. "FRI, 8 AUG '25"
   const d = new Date(dateISO + "T00:00:00");
   const weekday = d.toLocaleDateString("en-US", { weekday:"short" }).toUpperCase();
   const day = d.getDate();
@@ -81,18 +80,18 @@ function formatDayHeader(dateISO){
 function getCat(catId){
   return state.categories.find(c => c.id === catId) || null;
 }
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;")
-    .replaceAll(">","&gt;").replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
 
-// ---------- UI: screen switching ----------
 function showScreen(which){
   $("screenList").classList.toggle("hidden", which !== "list");
   $("screenAdd").classList.toggle("hidden", which !== "add");
 }
+
+function setTypeUI(type){
+  entry.type = type;
+  $("tabExpense").classList.toggle("active", type === "expense");
+  $("tabIncome").classList.toggle("active", type === "income");
+}
+
 function resetEntry(){
   entry = {
     type: "expense",
@@ -100,25 +99,27 @@ function resetEntry(){
     note: "",
     catId: null,
     dateISO: todayISO(),
+    timeHHMM: nowHHMM(),
   };
-  $("amountDisplay").textContent = entry.amountStr;
-  $("categoryLabel").textContent = "Category";
-  $("dateLabel").textContent = "Today";
-  $("timeLabel").textContent = nowHHMM();
   setTypeUI("expense");
+  renderEntryUI();
 }
 
-// ---------- UI: type toggle ----------
-function setTypeUI(type){
-  entry.type = type;
-  $("tabExpense").classList.toggle("active", type === "expense");
-  $("tabIncome").classList.toggle("active", type === "income");
-}
-$("tabExpense").addEventListener("click", () => setTypeUI("expense"));
-$("tabIncome").addEventListener("click", () => setTypeUI("income"));
-$("btnSwapType").addEventListener("click", () => setTypeUI(entry.type === "expense" ? "income" : "expense"));
+function renderEntryUI(){
+  $("amountDisplay").textContent = entry.amountStr;
+  $("categoryLabel").textContent = entry.catId ? getCat(entry.catId)?.name : "Category";
 
-// ---------- Keypad ----------
+  const today = todayISO();
+  if(entry.dateISO === today){
+    $("dateLabel").textContent = "Today";
+  } else {
+    $("dateLabel").textContent = entry.dateISO;
+  }
+
+  $("timeLabel").textContent = entry.timeHHMM;
+}
+
+/* ---------- Keypad (Dime-style) ---------- */
 function buildKeypad(){
   const keys = [
     "1","2","3",
@@ -145,35 +146,49 @@ function buildKeypad(){
 }
 
 function handleKey(k){
-  // mimic calculator input
+  // Dime-like rules:
+  // - only one dot
+  // - leading 0 replaced
+  // - max 2 decimals (optional but closer to money UX)
+  // - prevent huge length
+  let s = entry.amountStr;
+
   if(k === "."){
-    if(entry.amountStr.includes(".")) return;
-    entry.amountStr = entry.amountStr + ".";
-    $("amountDisplay").textContent = entry.amountStr;
-    return;
+    if(s.includes(".")) return;
+    entry.amountStr = s + ".";
+    return renderEntryUI();
   }
 
-  if(entry.amountStr === "0"){
+  // If currently "0", replace with digit
+  if(s === "0"){
     entry.amountStr = k;
-  } else {
-    // limit length so it stays pretty
-    if(entry.amountStr.length >= 10) return;
-    entry.amountStr += k;
+    return renderEntryUI();
   }
-  $("amountDisplay").textContent = entry.amountStr;
+
+  // If has decimals, limit to 2 dp
+  if(s.includes(".")){
+    const [a,b] = s.split(".");
+    if((b || "").length >= 2) return;
+  }
+
+  if(s.length >= 12) return;
+  entry.amountStr = s + k;
+  renderEntryUI();
 }
 
 $("btnBackspace").addEventListener("click", () => {
-  if(entry.amountStr.length <= 1){
+  let s = entry.amountStr;
+  if(s.length <= 1){
     entry.amountStr = "0";
   } else {
-    entry.amountStr = entry.amountStr.slice(0, -1);
-    if(entry.amountStr === "-" || entry.amountStr === "") entry.amountStr = "0";
+    s = s.slice(0, -1);
+    if(s === "" || s === "-") s = "0";
+    entry.amountStr = s;
   }
-  $("amountDisplay").textContent = entry.amountStr;
+  renderEntryUI();
 });
 
-// ---------- Note modal ----------
+/* ---------- Note ---------- */
 $("btnAddNote").addEventListener("click", () => {
   $("noteInput").value = entry.note || "";
   $("noteDialog").showModal();
@@ -184,7 +199,7 @@ $("noteSave").addEventListener("click", (e) => {
   $("noteDialog").close();
 });
 
-// ---------- Category modal ----------
+/* ---------- Category ---------- */
 function openCategoryDialog(){
   const grid = $("categoryGrid");
   grid.innerHTML = "";
@@ -199,32 +214,63 @@ function openCategoryDialog(){
     `;
     b.addEventListener("click", () => {
       entry.catId = c.id;
-      $("categoryLabel").textContent = c.name;
       $("categoryDialog").close();
+      renderEntryUI();
     });
     grid.appendChild(b);
   }
+
   $("categoryDialog").showModal();
 }
 $("btnCategory").addEventListener("click", openCategoryDialog);
 
-// Date button (simple: uses today; you can expand later)
+/* ---------- Date + Time pickers (real, not toggle) ---------- */
+function ensureHiddenPickers(){
+  if($("hiddenDate")) return;
+
+  const dateInput = document.createElement("input");
+  dateInput.type = "date";
+  dateInput.id = "hiddenDate";
+  dateInput.style.position = "fixed";
+  dateInput.style.left = "-9999px";
+
+  const timeInput = document.createElement("input");
+  timeInput.type = "time";
+  timeInput.id = "hiddenTime";
+  timeInput.style.position = "fixed";
+  timeInput.style.left = "-9999px";
+
+  document.body.appendChild(dateInput);
+  document.body.appendChild(timeInput);
+
+  dateInput.addEventListener("change", () => {
+    if(dateInput.value) entry.dateISO = dateInput.value;
+    renderEntryUI();
+  });
+
+  timeInput.addEventListener("change", () => {
+    if(timeInput.value) entry.timeHHMM = timeInput.value;
+    renderEntryUI();
+  });
+}
+
 $("btnDate").addEventListener("click", () => {
-  // For now: toggle today / yesterday quickly (keeps it simple)
-  const d = new Date(entry.dateISO + "T00:00:00");
-  const isToday = entry.dateISO === todayISO();
-  if(isToday){
-    d.setDate(d.getDate()-1);
-    entry.dateISO = d.toISOString().slice(0,10);
-    $("dateLabel").textContent = "Yesterday";
-  } else {
-    entry.dateISO = todayISO();
-    $("dateLabel").textContent = "Today";
-  }
-  $("timeLabel").textContent = nowHHMM();
+  ensureHiddenPickers();
+  const dateInput = $("hiddenDate");
+  dateInput.value = entry.dateISO;
+  dateInput.showPicker ? dateInput.showPicker() : dateInput.click();
 });
 
-// ---------- Save transaction ----------
+$("timeLabel").addEventListener("click", (e) => {
+  // allow tapping time to change time like Dime
+  e.stopPropagation();
+  ensureHiddenPickers();
+  const timeInput = $("hiddenTime");
+  timeInput.value = entry.timeHHMM;
+  timeInput.showPicker ? timeInput.showPicker() : timeInput.click();
+});
+
+/* ---------- Save ---------- */
 function saveTransactionFromEntry(){
   const amount = parseAmount(entry.amountStr);
 
@@ -239,41 +285,33 @@ function saveTransactionFromEntry(){
 
   const tx = {
     id: crypto.randomUUID(),
-    type: entry.type, // expense|income
+    type: entry.type,
     amount,
     note: entry.note || "",
     catId: entry.catId,
     dateISO: entry.dateISO,
-    timeHHMM: nowHHMM(),
+    timeHHMM: entry.timeHHMM,
     createdAt: Date.now()
   };
 
   state.transactions.push(tx);
   saveState();
 
-  // go back to list
   showScreen("list");
   renderAll();
   resetEntry();
 }
 
-// ---------- Feed rendering ----------
+/* ---------- List rendering ---------- */
 function renderAll(){
   renderBalance();
   renderFeed();
 }
 
 function renderBalance(){
-  const income = state.transactions
-    .filter(t => t.type === "income")
-    .reduce((s,t) => s + t.amount, 0);
-
-  const expense = state.transactions
-    .filter(t => t.type === "expense")
-    .reduce((s,t) => s + t.amount, 0);
-
-  const bal = income - expense;
-  $("balanceValue").textContent = peso(bal);
+  const income = state.transactions.filter(t => t.type === "income").reduce((s,t)=>s+t.amount,0);
+  const expense = state.transactions.filter(t => t.type === "expense").reduce((s,t)=>s+t.amount,0);
+  $("balanceValue").textContent = peso(income - expense);
 }
 
 function renderFeed(){
@@ -285,8 +323,7 @@ function renderFeed(){
     return;
   }
 
-  // group by dateISO desc
-  const sorted = [...state.transactions].sort((a,b) => {
+  const sorted = [...state.transactions].sort((a,b)=>{
     if(a.dateISO !== b.dateISO) return b.dateISO.localeCompare(a.dateISO);
     return b.createdAt - a.createdAt;
   });
@@ -304,7 +341,6 @@ function renderFeed(){
 
     const grp = document.createElement("div");
     grp.className = "dayGroup";
-
     grp.innerHTML = `
       <div class="dayHeader">
         <div>${escapeHtml(formatDayHeader(dateISO))}</div>
@@ -338,18 +374,27 @@ function renderFeed(){
   }
 }
 
-// ---------- Events ----------
+/* ---------- Buttons ---------- */
 $("btnAdd").addEventListener("click", () => {
   showScreen("add");
-  $("timeLabel").textContent = nowHHMM();
+  entry.timeHHMM = nowHHMM();
+  renderEntryUI();
 });
-
 $("btnCloseAdd").addEventListener("click", () => {
   showScreen("list");
   resetEntry();
 });
+$("tabExpense").addEventListener("click", () => setTypeUI("expense"));
+$("tabIncome").addEventListener("click", () => setTypeUI("income"));
+$("btnSwapType").addEventListener("click", () => setTypeUI(entry.type === "expense" ? "income" : "expense"));
 
+/* ---------- Init ---------- */
 buildKeypad();
 resetEntry();
 renderAll();
 showScreen("list");
+
+// Service worker
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js");
+}
