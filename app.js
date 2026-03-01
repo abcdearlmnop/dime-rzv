@@ -1,4 +1,4 @@
-const LS_KEY = "dime_lite_v3";
+const LS_KEY = "dime_lite_v7";
 
 const DEFAULT_CATS = [
   { name: "Groceries", emoji:"🛒", color:"#d9c7ff" },
@@ -39,25 +39,18 @@ function loadState(){
     transactions: []
   };
 }
-function saveState(){
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
-}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 
 function peso(n){
   return new Intl.NumberFormat("en-PH", { style:"currency", currency:"PHP" }).format(n || 0);
 }
 function todayISO(){
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,"0");
-  const day = String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 function nowHHMM(){
   const d = new Date();
-  const hh = String(d.getHours()).padStart(2,"0");
-  const mm = String(d.getMinutes()).padStart(2,"0");
-  return `${hh}:${mm}`;
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 function parseAmount(s){
   const n = Number(s);
@@ -107,13 +100,12 @@ function resetEntry(){
 
 function renderEntryUI(){
   $("amountDisplay").textContent = entry.amountStr;
-  $("categoryLabel").textContent = entry.catId ? getCat(entry.catId)?.name : "Category";
+  $("categoryLabel").textContent = entry.catId ? (getCat(entry.catId)?.name || "Category") : "Category";
 
   const today = todayISO();
   if(entry.dateISO === today){
     $("dateLabel").textContent = "Today";
   } else {
-    // Format like: "Fri, 8 Aug"
     const d = new Date(entry.dateISO + "T00:00:00");
     const wk = d.toLocaleDateString("en-US", { weekday:"short" });
     const day = d.getDate();
@@ -124,15 +116,9 @@ function renderEntryUI(){
   $("timeLabel").textContent = entry.timeHHMM;
 }
 
-/* ---------- Keypad (Dime-style) ---------- */
+/* --- Dime keypad: EXACT 3x4 order --- */
 function buildKeypad(){
-  // EXACT order like Dime:
-  // 1 2 3
-  // 4 5 6
-  // 7 8 9
-  // . 0 ✓
   const keys = ["1","2","3","4","5","6","7","8","9",".","0","ok"];
-
   const wrap = $("keypad");
   wrap.innerHTML = "";
 
@@ -143,9 +129,6 @@ function buildKeypad(){
     if(k === "ok"){
       btn.className = "key keyOk";
       btn.textContent = "✓";
-    } else if(k === "."){
-      btn.className = "key keyDot";
-      btn.textContent = ".";
     } else {
       btn.className = "key";
       btn.textContent = k;
@@ -161,11 +144,6 @@ function buildKeypad(){
 }
 
 function handleKey(k){
-  // Dime-like rules:
-  // - only one dot
-  // - leading 0 replaced
-  // - max 2 decimals (optional but closer to money UX)
-  // - prevent huge length
   let s = entry.amountStr;
 
   if(k === "."){
@@ -174,16 +152,15 @@ function handleKey(k){
     return renderEntryUI();
   }
 
-  // If currently "0", replace with digit
   if(s === "0"){
     entry.amountStr = k;
     return renderEntryUI();
   }
 
-  // If has decimals, limit to 2 dp
+  // 2 decimal max (money behavior)
   if(s.includes(".")){
-    const [a,b] = s.split(".");
-    if((b || "").length >= 2) return;
+    const parts = s.split(".");
+    if((parts[1] || "").length >= 2) return;
   }
 
   if(s.length >= 12) return;
@@ -193,17 +170,12 @@ function handleKey(k){
 
 $("btnBackspace").addEventListener("click", () => {
   let s = entry.amountStr;
-  if(s.length <= 1){
-    entry.amountStr = "0";
-  } else {
-    s = s.slice(0, -1);
-    if(s === "" || s === "-") s = "0";
-    entry.amountStr = s;
-  }
+  if(s.length <= 1) entry.amountStr = "0";
+  else entry.amountStr = s.slice(0, -1) || "0";
   renderEntryUI();
 });
 
-/* ---------- Note ---------- */
+/* Note */
 $("btnAddNote").addEventListener("click", () => {
   $("noteInput").value = entry.note || "";
   $("noteDialog").showModal();
@@ -214,8 +186,8 @@ $("noteSave").addEventListener("click", (e) => {
   $("noteDialog").close();
 });
 
-/* ---------- Category ---------- */
-function openCategoryDialog(){
+/* Category */
+$("btnCategory").addEventListener("click", () => {
   const grid = $("categoryGrid");
   grid.innerHTML = "";
 
@@ -236,10 +208,9 @@ function openCategoryDialog(){
   }
 
   $("categoryDialog").showModal();
-}
-$("btnCategory").addEventListener("click", openCategoryDialog);
+});
 
-/* ---------- Date + Time pickers (real, not toggle) ---------- */
+/* FULL editable date + time pickers */
 function ensureHiddenPickers(){
   if($("hiddenDate")) return;
 
@@ -248,14 +219,12 @@ function ensureHiddenPickers(){
   dateInput.id = "hiddenDate";
   dateInput.style.position = "fixed";
   dateInput.style.left = "-9999px";
-  dateInput.style.top = "0";
 
   const timeInput = document.createElement("input");
   timeInput.type = "time";
   timeInput.id = "hiddenTime";
   timeInput.style.position = "fixed";
   timeInput.style.left = "-9999px";
-  timeInput.style.top = "0";
 
   document.body.appendChild(dateInput);
   document.body.appendChild(timeInput);
@@ -271,42 +240,29 @@ function ensureHiddenPickers(){
   });
 }
 
-// Tap date pill => open full calendar picker
 $("btnDate").addEventListener("click", () => {
   ensureHiddenPickers();
-  const dateInput = $("hiddenDate");
-  dateInput.value = entry.dateISO;
-
-  // Modern Chrome Android supports showPicker()
-  if (dateInput.showPicker) dateInput.showPicker();
-  else dateInput.click();
+  const i = $("hiddenDate");
+  i.value = entry.dateISO;
+  if(i.showPicker) i.showPicker();
+  else i.click();
 });
 
-// Tap time (new button) => open time picker
 $("timeBtn").addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
-
   ensureHiddenPickers();
-  const timeInput = $("hiddenTime");
-  timeInput.value = entry.timeHHMM;
-
-  if (timeInput.showPicker) timeInput.showPicker();
-  else timeInput.click();
+  const i = $("hiddenTime");
+  i.value = entry.timeHHMM;
+  if(i.showPicker) i.showPicker();
+  else i.click();
 });
 
-/* ---------- Save ---------- */
+/* Save */
 function saveTransactionFromEntry(){
   const amount = parseAmount(entry.amountStr);
-
-  if(!(amount > 0)){
-    alert("Enter an amount.");
-    return;
-  }
-  if(!entry.catId){
-    alert("Select a category.");
-    return;
-  }
+  if(!(amount > 0)) return alert("Enter an amount.");
+  if(!entry.catId) return alert("Select a category.");
 
   const tx = {
     id: crypto.randomUUID(),
@@ -321,22 +277,17 @@ function saveTransactionFromEntry(){
 
   state.transactions.push(tx);
   saveState();
-
   showScreen("list");
   renderAll();
   resetEntry();
 }
 
-/* ---------- List rendering ---------- */
+/* Render list */
 function renderAll(){
-  renderBalance();
-  renderFeed();
-}
-
-function renderBalance(){
   const income = state.transactions.filter(t => t.type === "income").reduce((s,t)=>s+t.amount,0);
   const expense = state.transactions.filter(t => t.type === "expense").reduce((s,t)=>s+t.amount,0);
   $("balanceValue").textContent = peso(income - expense);
+  renderFeed();
 }
 
 function renderFeed(){
@@ -378,7 +329,6 @@ function renderFeed(){
       const icon = cat?.emoji ?? "✨";
       const color = cat?.color ?? "#e9e9ee";
       const title = t.note?.trim() ? t.note.trim() : (cat?.name ?? "Transaction");
-
       const amtSign = (t.type === "income") ? "+" : "-";
       const amtClass = (t.type === "income") ? "income" : "expense";
 
@@ -399,7 +349,7 @@ function renderFeed(){
   }
 }
 
-/* ---------- Buttons ---------- */
+/* Buttons */
 $("btnAdd").addEventListener("click", () => {
   showScreen("add");
   entry.timeHHMM = nowHHMM();
@@ -413,13 +363,12 @@ $("tabExpense").addEventListener("click", () => setTypeUI("expense"));
 $("tabIncome").addEventListener("click", () => setTypeUI("income"));
 $("btnSwapType").addEventListener("click", () => setTypeUI(entry.type === "expense" ? "income" : "expense"));
 
-/* ---------- Init ---------- */
+/* Init */
 buildKeypad();
 resetEntry();
 renderAll();
 showScreen("list");
 
-// Service worker
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("./sw.js");
 }
