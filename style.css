@@ -143,6 +143,27 @@ body{
   padding: 16px;
 }
 
+.carryover{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding: 6px 6px 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.carryover-label{
+  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+
+.carryover-value{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 900;
+  font-size: 20px;
+}
+
 .chart-wrap{
   display:flex;
   justify-content:center;
