@@ -5,10 +5,6 @@
   --muted:#8a8a93;
   --line:#e7e7ea;
   --shadow: 0 8px 24px rgba(0,0,0,.06);
-
-  --expense:#111111;
-  --income:#2ecc71;
-
   --radius:18px;
 }
 
@@ -23,6 +19,7 @@ body{
 
 .hidden{ display:none !important; }
 
+/* Screens */
 .screen{
   min-height:100vh;
   display:flex;
@@ -64,9 +61,7 @@ body{
   padding: 0 14px 90px;
 }
 
-.dayGroup{
-  margin-top:12px;
-}
+.dayGroup{ margin-top:12px; }
 .dayHeader{
   display:flex;
   justify-content:space-between;
@@ -74,9 +69,7 @@ body{
   padding: 10px 4px;
   color:var(--muted);
   font-weight:600;
-  letter-spacing:0.2px;
 }
-.dayTotal{ color:var(--muted); }
 
 .txRow{
   display:flex;
@@ -91,12 +84,8 @@ body{
   display:grid;
   place-items:center;
   font-size:22px;
-  color:#111;
 }
-.txMain{
-  flex:1;
-  min-width:0;
-}
+.txMain{ flex:1; min-width:0; }
 .txTitle{
   font-size:16px;
   font-weight:650;
@@ -104,18 +93,10 @@ body{
   overflow:hidden;
   text-overflow:ellipsis;
 }
-.txTime{
-  margin-top:3px;
-  font-size:12px;
-  color:var(--muted);
-}
-.txAmount{
-  font-size:20px;
-  font-weight:800;
-  letter-spacing:-0.2px;
-}
-.txAmount.expense{ color: var(--expense); }
-.txAmount.income{ color: var(--income); }
+.txTime{ margin-top:3px; font-size:12px; color:var(--muted); }
+.txAmount{ font-size:20px; font-weight:800; }
+.txAmount.expense{ color:#111; }
+.txAmount.income{ color:#2ecc71; }
 
 /* Bottom nav */
 .bottomNav{
@@ -138,7 +119,6 @@ body{
   cursor:pointer;
   opacity:.75;
 }
-
 .fab{
   width:62px;height:62px;
   border:none;
@@ -151,7 +131,7 @@ body{
   cursor:pointer;
 }
 
-/* Add screen */
+/* Add screen top */
 .addTopbar{
   padding:14px 16px;
   display:flex;
@@ -172,7 +152,7 @@ body{
   padding:8px 14px;
   border-radius:12px;
   cursor:pointer;
-  font-weight:700;
+  font-weight:800;
   color:var(--muted);
 }
 .segBtn.active{
@@ -182,13 +162,12 @@ body{
 }
 
 .amountSection{
-  padding: 22px 16px 10px;
+  padding: 26px 16px 10px;
   display:flex;
   flex-direction:column;
   align-items:center;
   gap:14px;
 }
-
 .amountRow{
   display:flex;
   align-items:flex-end;
@@ -215,7 +194,7 @@ body{
   background:#fff;
   padding:10px 14px;
   border-radius:14px;
-  font-weight:700;
+  font-weight:800;
   color:#9a9aa2;
   cursor:pointer;
 }
@@ -247,35 +226,49 @@ body{
   font-weight:800;
 }
 .metaIcon{ opacity:.6; }
-.metaRight{
+
+/* Time button */
+.timeBtn{
+  border:none;
+  background:transparent;
+  padding:0;
   margin-left:auto;
+  font: inherit;
+  cursor:pointer;
+  font-weight:800;
   color:#111;
   opacity:.85;
 }
 
-/* Keypad */
-.keypad{
+/* ✅ THIS is the Dime keypad layout.
+   It targets BOTH .keypad and #keypad so selector mismatches cannot break it. */
+.keypad, #keypad{
+  margin-top:auto;
   padding: 0 16px 18px;
-  display:grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap:12px;
+  display:grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap:14px !important;
 }
 
 .key{
-  height:78px;
+  height:86px;
+  width:100%;
   border:none;
   background:#ededf0;
   border-radius:18px;
-  font-size:34px;
+  font-size:40px;
   font-weight:700;
+  display:grid;
+  place-items:center;
   cursor:pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.key:active{ transform: scale(0.985); }
+
 .keyOk{
   background:#1a1a1a;
   color:#fff;
-}
-.keyWide{
-  grid-column: span 2;
+  font-size:34px;
 }
 
 /* Dialogs */
@@ -345,73 +338,4 @@ dialog::backdrop{ background: rgba(0,0,0,.45); }
   display:grid;
   place-items:center;
   font-size:20px;
-}
-/* --- DIME-LIKE KEYPAD LAYOUT --- */
-
-/* Make the add screen behave like the iOS layout:
-   big keypad pinned to bottom area, consistent spacing */
-#screenAdd{
-  background: var(--bg);
-}
-
-/* Keep amount centered, meta row above keypad */
-.amountSection{
-  padding: 26px 16px 14px;
-}
-
-.metaRow{
-  padding: 10px 16px 12px;
-}
-
-/* Keypad wrapper: bigger, Dime spacing */
-.keypad{
-  margin-top: auto;
-  padding: 0 16px 18px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-/* Key buttons: big rounded rectangles like Dime */
-.key{
-  height: 86px;
-  border: none;
-  background: #ededf0;
-  border-radius: 18px;
-  font-size: 40px;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* ✅ button look/placement */
-.keyOk{
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 34px;
-}
-
-/* Dot should look like iOS small dot */
-.keyDot{
-  font-size: 42px;
-}
-
-/* Improve press feedback */
-.key:active{
-  transform: scale(0.985);
-}
-
-/* Time button inside date pill */
-.timeBtn{
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin-left: auto;
-  font: inherit;
-  cursor: pointer;
-  font-weight: 800;
-  color: #111;
-  opacity: .85;
 }
