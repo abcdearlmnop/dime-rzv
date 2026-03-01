@@ -30,10 +30,11 @@ const CATEGORIES = [
 const $ = (id) => document.getElementById(id);
 
 let state = {
-  currentMonth: new Date(), // will be normalized
-  chartMode: "expense",     // "expense" | "income"
-  typeToAdd: "expense",     // "expense" | "income"
+  currentMonth: new Date(),
+  chartMode: "expense",
+  typeToAdd: "expense",
   transactions: [],
+  startingBalance: 0,
 };
 
 function pad2(n){ return String(n).padStart(2,"0"); }
@@ -122,7 +123,11 @@ function totalsForMonth(){
   const tx = getMonthTx();
   const income = tx.filter(t => t.type === "income").reduce((a,b)=>a+b.amount,0);
   const expense = tx.filter(t => t.type === "expense").reduce((a,b)=>a+b.amount,0);
-  return { income, expense, balance: income - expense };
+
+  const carryIn = carryInForMonth();
+  const balance = carryIn + income - expense;
+
+  return { income, expense, balance, carryIn };
 }
 
 function categoryTotals(mode){
@@ -240,11 +245,31 @@ function renderBreakdown(rows, total){
 }
 
 function renderTotals(){
-  const { income, expense, balance } = totalsForMonth();
+  const { income, expense, balance, carryIn } = totalsForMonth();
+
   $("incomeTotal").textContent = formatMoney(income);
   $("expenseTotal").textContent = formatMoney(expense);
+
+  // this is now the "end balance" for the selected month (carryover + this month net)
   $("balanceTotal").textContent = formatMoney(balance);
   $("balanceTotal").classList.toggle("negative", balance < 0);
+
+  // NEW: carryover viewer (start-of-month money available)
+  $("carryIn").textContent = formatMoney(carryIn);
+}
+
+function carryInForMonth(){
+  const start = startOfMonth(state.currentMonth);
+  let netBefore = 0;
+
+  for (const t of state.transactions){
+    const td = new Date(t.date + "T00:00:00");
+    if (td < start){
+      netBefore += (t.type === "income" ? t.amount : -t.amount);
+    }
+  }
+
+  return state.startingBalance + netBefore;
 }
 
 function render(){
@@ -384,3 +409,22 @@ function init(){
 }
 
 init();
+// Load starting balance once
+state.startingBalance = loadStartingBalance();
+
+// Settings button = set starting balance
+$("tabSettings").addEventListener("click", () => {
+  const current = state.startingBalance.toFixed(2);
+  const input = prompt("Set starting money (carryover base):", current);
+  if (input === null) return;
+
+  const val = Number(input);
+  if (!Number.isFinite(val)) {
+    alert("Please enter a valid number.");
+    return;
+  }
+
+  state.startingBalance = val;
+  saveStartingBalance(val);
+  render();
+});
