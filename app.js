@@ -1,585 +1,374 @@
-const STORE_KEY = "dimeish_offline_v1";
+/* ============================
+   Dime Offline (Lite) - Vanilla JS
+   Offline storage: localStorage
+   ============================ */
 
-/** ---------- Helpers ---------- */
-const pad2 = (n) => String(n).padStart(2, "0");
-const toLocalISODate = (d) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-const fromISODate = (s) => {
-  const [y,m,dd] = s.split("-").map(Number);
-  return new Date(y, m-1, dd);
+const STORAGE_KEY = "dime_offline_v1_transactions";
+
+const CATEGORIES = [
+  { key: "Groceries", color: "#7ad5cb" },
+  { key: "Food", color: "#ff7a78" },
+  { key: "Utilities", color: "#66b9d8" },
+  { key: "Shopping", color: "#f4c24d" },
+  { key: "Travel", color: "#ff8a3d" },
+  { key: "Healthcare", color: "#6bd14a" },
+  { key: "Subscriptions", color: "#8a56ff" },
+];
+
+const $ = (id) => document.getElementById(id);
+
+let state = {
+  currentMonth: new Date(), // will be normalized
+  chartMode: "expense",     // "expense" | "income"
+  typeToAdd: "expense",     // "expense" | "income"
+  transactions: [],
 };
 
-function formatPHP(amount) {
-  // amount is number (peso) can be negative
-  const sign = amount >= 0 ? "+" : "-";
-  const abs = Math.abs(amount);
-  const formatted = abs.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${sign}₱${formatted}`;
-}
+function pad2(n){ return String(n).padStart(2,"0"); }
 
-function formatPHPNoPlus(amount) {
-  // for list items (negative shows -₱..., income shows ₱... or +₱...)
-  const sign = amount < 0 ? "-" : "";
-  const abs = Math.abs(amount);
-  const formatted = abs.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${sign}₱${formatted}`;
-}
-
-function formatGroupHeader(dateObj) {
-  const wd = dateObj.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
-  const day = dateObj.getDate();
-  const mo = dateObj.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
-  const yy = String(dateObj.getFullYear()).slice(-2);
-  return `${wd}, ${day} ${mo} '${yy}`;
-}
-
-function formatTimeHM(dateObj) {
-  return dateObj.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-function monthKey(d) {
+function monthKey(d){
   return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`; // YYYY-MM
 }
 
-/** ---------- State ---------- */
-const defaultCategories = [
-  { id: "food", name: "Food", icon: "🍔" },
-  { id: "gas", name: "Gas", icon: "⛽️" },
-  { id: "groceries", name: "Groceries", icon: "🛒" },
-  { id: "bills", name: "Bills", icon: "🧾" },
-  { id: "coffee", name: "Coffee", icon: "☕️" },
-  { id: "general", name: "General", icon: "🟦" },
-];
-
-const state = load() ?? {
-  entries: [],     // {id,type,amountCents,note,categoryId,ts}
-  categories: defaultCategories,
-  selectedMonth: monthKey(new Date()),
-};
-
-let addMode = {
-  editingId: null,
-  type: "expense",
-  amountStr: "0",      // keypad string
-  note: "",
-  dateISO: toLocalISODate(new Date()),
-  timeHM: pad2(new Date().getHours()) + ":" + pad2(new Date().getMinutes()),
-  categoryId: "general",
-};
-
-/** ---------- Storage ---------- */
-function save() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+function startOfMonth(d){
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-function load() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+function formatMoney(n){
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  return `${sign}$${abs.toFixed(2)}`;
+}
+
+function loadTx(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch{
+    return [];
   }
 }
 
-/** ---------- DOM ---------- */
-const $ = (id) => document.getElementById(id);
-
-const homeView = $("homeView");
-const addView = $("addView");
-
-const listEl = $("list");
-const emptyHome = $("emptyHome");
-
-const bigSignEl = $("bigSign");
-const bigAmountEl = $("bigAmount");
-const bigTotalSub = $("bigTotalSub");
-
-const openAddBtn = $("openAddBtn");
-const closeAddBtn = $("closeAddBtn");
-
-const segExpense = $("segExpense");
-const segIncome = $("segIncome");
-const swapTypeBtn = $("swapTypeBtn");
-
-const amountValue = $("amountValue");
-const clearAmountBtn = $("clearAmountBtn");
-
-const addNoteBtn = $("addNoteBtn");
-const noteInput = $("noteInput");
-
-const dateBtn = $("dateBtn");
-const timeBtn = $("timeBtn");
-const categoryBtn = $("categoryBtn");
-
-const dateLabel = $("dateLabel");
-const timeLabel = $("timeLabel");
-const categoryLabel = $("categoryLabel");
-
-const datePicker = $("datePicker");
-const timePicker = $("timePicker");
-
-const keypad = document.querySelector(".keypad");
-const saveBtn = $("saveBtn");
-
-/** Category sheet */
-const sheetBackdrop = $("sheetBackdrop");
-const closeSheetBtn = $("closeSheetBtn");
-const catList = $("catList");
-const newCatName = $("newCatName");
-const newCatIcon = $("newCatIcon");
-const addCatConfirm = $("addCatConfirm");
-
-/** Month picker */
-const filterBtn = $("filterBtn");
-const monthBackdrop = $("monthBackdrop");
-const closeMonthBtn = $("closeMonthBtn");
-const monthPicker = $("monthPicker");
-const applyMonthBtn = $("applyMonthBtn");
-
-/** Bottom nav buttons (minimal functional so they’re not “dead”) */
-$("navHome").addEventListener("click", () => showHome());
-$("navStats").addEventListener("click", () => alert("Stats screen is not included yet (kept simple)."));
-$("navCats").addEventListener("click", () => openCategorySheet());
-$("navSettings").addEventListener("click", () => {
-  const ok = confirm("Export your data to clipboard?");
-  if (!ok) return;
-  navigator.clipboard?.writeText(JSON.stringify(state, null, 2));
-  alert("Copied JSON to clipboard (if allowed by browser).");
-});
-
-/** ---------- View control ---------- */
-function showHome() {
-  addView.classList.remove("view--active");
-  homeView.classList.add("view--active");
-  renderHome();
+function saveTx(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.transactions));
 }
 
-function showAdd() {
-  homeView.classList.remove("view--active");
-  addView.classList.add("view--active");
-  renderAdd();
+function uid(){
+  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-/** ---------- Home rendering (Image 1) ---------- */
-function entriesForSelectedMonth() {
-  const [y,m] = state.selectedMonth.split("-").map(Number);
-  return state.entries.filter(e => {
-    const d = new Date(e.ts);
-    return d.getFullYear() === y && (d.getMonth()+1) === m;
-  });
+function setMonthTitle(){
+  const d = state.currentMonth;
+  const monthName = d.toLocaleString(undefined, { month:"long" });
+  $("monthTitle").textContent = `${monthName} ${d.getFullYear()}`;
 }
 
-function monthNetTotal() {
-  const items = entriesForSelectedMonth();
-  const totalCents = items.reduce((acc, e) => {
-    const sign = e.type === "income" ? 1 : -1;
-    return acc + sign * e.amountCents;
-  }, 0);
-  return totalCents / 100;
+function setModeButtons(){
+  $("modeExpenses").classList.toggle("active", state.chartMode === "expense");
+  $("modeIncome").classList.toggle("active", state.chartMode === "income");
 }
 
-function groupByDay(items) {
-  const map = new Map();
-  for (const e of items) {
-    const d = new Date(e.ts);
-    const iso = toLocalISODate(d);
-    if (!map.has(iso)) map.set(iso, []);
-    map.get(iso).push(e);
-  }
-  // sort newest day first
-  const keys = Array.from(map.keys()).sort((a,b) => (a < b ? 1 : -1));
-  // sort entries within day by time desc
-  for (const k of keys) map.get(k).sort((a,b) => b.ts - a.ts);
-  return { keys, map };
+function setTypeButtons(){
+  $("typeExpense").classList.toggle("active", state.typeToAdd === "expense");
+  $("typeIncome").classList.toggle("active", state.typeToAdd === "income");
 }
 
-function dayNet(list) {
-  const cents = list.reduce((acc, e) => {
-    const sign = e.type === "income" ? 1 : -1;
-    return acc + sign * e.amountCents;
-  }, 0);
-  return cents / 100;
-}
+function openModal(){
+  $("modalBackdrop").classList.remove("hidden");
+  $("modal").classList.remove("hidden");
 
-function renderHome() {
-  // Big total
-  const net = monthNetTotal();
-  bigSignEl.textContent = net >= 0 ? "+" : "-";
-  bigAmountEl.textContent = Math.abs(net).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  // subtitle month label
-  const [yy,mm] = state.selectedMonth.split("-");
-  const temp = new Date(Number(yy), Number(mm)-1, 1);
-  bigTotalSub.textContent = temp.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  const items = entriesForSelectedMonth();
-  const { keys, map } = groupByDay(items);
-
-  listEl.innerHTML = "";
-  emptyHome.style.display = items.length ? "none" : "block";
-
-  for (const iso of keys) {
-    const d = fromISODate(iso);
-    const list = map.get(iso);
-
-    // group header
-    const gh = document.createElement("div");
-    gh.className = "groupHeader";
-
-    const left = document.createElement("div");
-    left.textContent = formatGroupHeader(d);
-
-    const right = document.createElement("div");
-    right.className = "groupTotal";
-    const dn = dayNet(list);
-    // screenshot shows "-₱1,479.00" (no plus). We'll show minus when negative, else "+₱.."
-    right.textContent = (dn < 0) ? `-${formatPHPNoPlus(dn).replace("₱", "₱")}` : `+${formatPHPNoPlus(dn)}`;
-
-    gh.appendChild(left);
-    gh.appendChild(right);
-    listEl.appendChild(gh);
-
-    // rows
-    for (const e of list) {
-      const row = document.createElement("div");
-      row.className = "txRow";
-      row.role = "button";
-      row.tabIndex = 0;
-
-      const cat = state.categories.find(c => c.id === e.categoryId) ?? { name:"General", icon:"🟦" };
-      const icon = document.createElement("div");
-      icon.className = "txIcon";
-      icon.textContent = cat.icon || "🟦";
-
-      const main = document.createElement("div");
-      main.className = "txMain";
-
-      const title = document.createElement("div");
-      title.className = "txTitle";
-      title.textContent = (e.note && e.note.trim()) ? e.note : cat.name;
-
-      const time = document.createElement("div");
-      time.className = "txTime";
-      time.textContent = formatTimeHM(new Date(e.ts));
-
-      main.appendChild(title);
-      main.appendChild(time);
-
-      const amt = document.createElement("div");
-      const sign = e.type === "income" ? 1 : -1;
-      const peso = (sign * e.amountCents) / 100;
-      amt.className = "txAmt " + (e.type === "income" ? "txAmt--income" : "txAmt--expense");
-      // Dime screenshot shows "-₱1,279.00" etc
-      amt.textContent = (peso < 0 ? "-" : "") + "₱" + Math.abs(peso).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-      row.appendChild(icon);
-      row.appendChild(main);
-      row.appendChild(amt);
-
-      // tap to edit (so it’s not just “view-only”)
-      row.addEventListener("click", () => openEdit(e.id));
-      row.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openEdit(e.id); }
-      });
-
-      listEl.appendChild(row);
-    }
-  }
-}
-
-/** ---------- Add screen logic (Image 2) ---------- */
-function setType(type) {
-  addMode.type = type;
-  segExpense.classList.toggle("segBtn--active", type === "expense");
-  segIncome.classList.toggle("segBtn--active", type === "income");
-  segExpense.setAttribute("aria-selected", String(type === "expense"));
-  segIncome.setAttribute("aria-selected", String(type === "income"));
-}
-
-function amountDisplayFromStr(str) {
-  // show without forcing decimals like Dime: "0" or "123" or "123.4"
-  return str;
-}
-
-function renderAdd() {
-  setType(addMode.type);
-  amountValue.textContent = amountDisplayFromStr(addMode.amountStr);
-
-  if (addMode.note && addMode.note.trim()) {
-    noteInput.classList.remove("hidden");
-    noteInput.value = addMode.note;
-  } else {
-    noteInput.classList.add("hidden");
-    noteInput.value = "";
-  }
-
-  // date label like "Today, 1 Mar"
-  const d = fromISODate(addMode.dateISO);
+  // default date: today (but editable to any date)
   const today = new Date();
-  const isToday = toLocalISODate(today) === addMode.dateISO;
-  const nice = d.toLocaleDateString("en-US", { day:"numeric", month:"short" });
-  dateLabel.textContent = isToday ? `Today, ${nice}` : d.toLocaleDateString("en-US", { weekday:"short", day:"numeric", month:"short", year:"numeric" });
+  $("date").value = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
 
-  timeLabel.textContent = addMode.timeHM;
+  // fill categories
+  const sel = $("category");
+  sel.innerHTML = "";
+  for (const c of CATEGORIES){
+    const opt = document.createElement("option");
+    opt.value = c.key;
+    opt.textContent = c.key;
+    sel.appendChild(opt);
+  }
 
-  const cat = state.categories.find(c => c.id === addMode.categoryId);
-  categoryLabel.textContent = cat ? cat.name : "Category";
-
-  // sync hidden pickers
-  datePicker.value = addMode.dateISO;
-  timePicker.value = addMode.timeHM;
+  $("amount").value = "";
+  $("notes").value = "";
+  setTypeButtons();
 }
 
-function resetAddMode() {
-  const now = new Date();
-  addMode = {
-    editingId: null,
-    type: "expense",
-    amountStr: "0",
-    note: "",
-    dateISO: toLocalISODate(now),
-    timeHM: pad2(now.getHours()) + ":" + pad2(now.getMinutes()),
-    categoryId: "general",
-  };
+function closeModal(){
+  $("modalBackdrop").classList.add("hidden");
+  $("modal").classList.add("hidden");
 }
 
-function openNew() {
-  resetAddMode();
-  showAdd();
+function getMonthTx(){
+  const key = monthKey(state.currentMonth);
+  return state.transactions.filter(t => t.monthKey === key);
 }
 
-function openEdit(id) {
-  const e = state.entries.find(x => x.id === id);
-  if (!e) return;
-
-  const d = new Date(e.ts);
-  addMode.editingId = id;
-  addMode.type = e.type;
-  addMode.amountStr = (e.amountCents / 100).toString().replace(/\.0$/, "");
-  addMode.note = e.note || "";
-  addMode.dateISO = toLocalISODate(d);
-  addMode.timeHM = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
-  addMode.categoryId = e.categoryId || "general";
-
-  showAdd();
+function totalsForMonth(){
+  const tx = getMonthTx();
+  const income = tx.filter(t => t.type === "income").reduce((a,b)=>a+b.amount,0);
+  const expense = tx.filter(t => t.type === "expense").reduce((a,b)=>a+b.amount,0);
+  return { income, expense, balance: income - expense };
 }
 
-/** Keypad input */
-function pushDigit(k) {
-  if (k === ".") {
-    if (addMode.amountStr.includes(".")) return;
-    addMode.amountStr = addMode.amountStr + ".";
+function categoryTotals(mode){
+  const tx = getMonthTx().filter(t => t.type === mode);
+  const map = new Map(CATEGORIES.map(c => [c.key, 0]));
+  for (const t of tx){
+    map.set(t.category, (map.get(t.category) || 0) + t.amount);
+  }
+  const total = Array.from(map.values()).reduce((a,b)=>a+b,0);
+  const rows = CATEGORIES
+    .map(c => ({
+      category: c.key,
+      color: c.color,
+      amount: map.get(c.key) || 0,
+      pct: total > 0 ? ((map.get(c.key) || 0) / total) : 0
+    }))
+    .filter(r => r.amount > 0);
+
+  // If no data, show empty ring
+  return { total, rows };
+}
+
+/* ===== Donut chart (no libraries) ===== */
+
+function drawDonut(rows, total){
+  const canvas = $("donut");
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  const cx = w/2, cy = h/2;
+  const radius = Math.min(w,h) * 0.42;
+  const thickness = Math.min(w,h) * 0.18;
+
+  // background ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI*2);
+  ctx.strokeStyle = "rgba(255,255,255,.10)";
+  ctx.lineWidth = thickness;
+  ctx.lineCap = "butt";
+  ctx.stroke();
+
+  if (!rows.length || total <= 0){
+    // center text
+    ctx.fillStyle = "rgba(233,238,252,.9)";
+    ctx.font = "900 30px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("No data", cx, cy + 10);
     return;
   }
 
-  // keep it like calculator:
-  if (addMode.amountStr === "0") addMode.amountStr = k;
-  else addMode.amountStr = addMode.amountStr + k;
-
-  // guard: max 2 decimals
-  if (addMode.amountStr.includes(".")) {
-    const [a,b] = addMode.amountStr.split(".");
-    if (b.length > 2) addMode.amountStr = a + "." + b.slice(0,2);
-  }
-}
-
-function clearAmount() {
-  addMode.amountStr = "0";
-}
-
-function toCents(str) {
-  const n = Number(str);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100);
-}
-
-function saveEntry() {
-  const cents = toCents(addMode.amountStr);
-  if (cents <= 0) { alert("Enter an amount."); return; }
-  if (!addMode.categoryId) { alert("Choose a category."); return; }
-
-  const d = fromISODate(addMode.dateISO);
-  const [hh,mm] = addMode.timeHM.split(":").map(Number);
-  d.setHours(hh, mm, 0, 0);
-
-  const payload = {
-    id: addMode.editingId ?? crypto.randomUUID(),
-    type: addMode.type,
-    amountCents: cents,
-    note: (noteInput.classList.contains("hidden") ? "" : (noteInput.value || "")).trim(),
-    categoryId: addMode.categoryId,
-    ts: d.getTime(),
-  };
-
-  if (addMode.editingId) {
-    const idx = state.entries.findIndex(x => x.id === addMode.editingId);
-    if (idx >= 0) state.entries[idx] = payload;
-  } else {
-    state.entries.push(payload);
+  // segments
+  let angle = -Math.PI/2;
+  for (const r of rows){
+    const seg = r.pct * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, angle, angle + seg);
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = thickness;
+    ctx.lineCap = "butt";
+    ctx.stroke();
+    angle += seg;
   }
 
-  // set selectedMonth to entry month so it appears immediately like Dime list
-  state.selectedMonth = monthKey(new Date(payload.ts));
+  // inner cut-out
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - thickness/2 - 2, 0, Math.PI*2);
+  ctx.fillStyle = "#0b142a";
+  ctx.fill();
 
-  save();
-  showHome();
+  // center total
+  ctx.fillStyle = "rgba(233,238,252,.95)";
+  ctx.font = "900 34px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(formatMoney(total), cx, cy + 10);
 }
 
-/** ---------- Category Sheet ---------- */
-function openCategorySheet() {
-  sheetBackdrop.classList.remove("hidden");
-  renderCategories();
-}
+/* ===== Breakdown list ===== */
 
-function closeCategorySheet() {
-  sheetBackdrop.classList.add("hidden");
-  newCatName.value = "";
-  newCatIcon.value = "";
-}
+function renderBreakdown(rows, total){
+  const el = $("breakdown");
+  el.innerHTML = "";
 
-function renderCategories() {
-  catList.innerHTML = "";
-  for (const c of state.categories) {
+  if (!rows.length){
+    const empty = document.createElement("div");
+    empty.style.color = "rgba(174,184,214,.9)";
+    empty.style.padding = "12px 6px 6px";
+    empty.style.fontWeight = "700";
+    empty.textContent = "No transactions for this month yet.";
+    el.appendChild(empty);
+    return;
+  }
+
+  for (const r of rows){
     const row = document.createElement("div");
-    row.className = "catRow";
+    row.className = "row";
 
-    const left = document.createElement("div");
-    left.className = "catLeft";
+    const sw = document.createElement("div");
+    sw.className = "swatch";
+    sw.style.background = r.color;
 
-    const ic = document.createElement("div");
-    ic.className = "catIcon";
-    ic.textContent = c.icon || "🟦";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = `${r.category} (${(r.pct*100).toFixed(1)}%)`;
 
-    const nm = document.createElement("div");
-    nm.className = "catName";
-    nm.textContent = c.name;
+    const amt = document.createElement("div");
+    amt.className = "amt";
+    amt.textContent = formatMoney(r.amount);
 
-    left.appendChild(ic);
-    left.appendChild(nm);
-
-    const right = document.createElement("div");
-    right.style.color = "var(--muted)";
-    right.style.fontWeight = "900";
-    right.textContent = (c.id === addMode.categoryId) ? "✓" : "";
-
-    row.appendChild(left);
-    row.appendChild(right);
-
-    row.addEventListener("click", () => {
-      addMode.categoryId = c.id;
-      renderAdd();
-      closeCategorySheet();
-    });
-
-    catList.appendChild(row);
+    row.appendChild(sw);
+    row.appendChild(name);
+    row.appendChild(amt);
+    el.appendChild(row);
   }
 }
 
-function addNewCategory() {
-  const name = (newCatName.value || "").trim();
-  if (!name) { alert("Enter a category name."); return; }
-  const icon = (newCatIcon.value || "🟦").trim().slice(0,2);
-  const id = "cat_" + Math.random().toString(16).slice(2);
-
-  state.categories.unshift({ id, name, icon });
-  addMode.categoryId = id;
-  save();
-  renderAdd();
-  renderCategories();
-  closeCategorySheet();
+function renderTotals(){
+  const { income, expense, balance } = totalsForMonth();
+  $("incomeTotal").textContent = formatMoney(income);
+  $("expenseTotal").textContent = formatMoney(expense);
+  $("balanceTotal").textContent = formatMoney(balance);
+  $("balanceTotal").classList.toggle("negative", balance < 0);
 }
 
-/** ---------- Month picker ---------- */
-function openMonthPicker() {
-  monthBackdrop.classList.remove("hidden");
-  monthPicker.value = state.selectedMonth;
+function render(){
+  setMonthTitle();
+  setModeButtons();
+
+  const mode = state.chartMode; // expense or income
+  const { total, rows } = categoryTotals(mode);
+
+  drawDonut(rows, total);
+  renderBreakdown(rows, total);
+  $("totalValue").textContent = formatMoney(total);
+
+  renderTotals();
 }
 
-function closeMonthPicker() {
-  monthBackdrop.classList.add("hidden");
-}
+/* ===== Add / Export / Import ===== */
 
-function applyMonth() {
-  const v = monthPicker.value;
-  if (!v) return;
-  state.selectedMonth = v;
-  save();
-  renderHome();
-  closeMonthPicker();
-}
+function addTransactionFromModal(){
+  const amount = Number($("amount").value);
+  const date = $("date").value; // YYYY-MM-DD
+  const category = $("category").value;
+  const notes = $("notes").value.trim();
 
-/** ---------- Events ---------- */
-openAddBtn.addEventListener("click", openNew);
-closeAddBtn.addEventListener("click", showHome);
-
-segExpense.addEventListener("click", () => { setType("expense"); renderAdd(); });
-segIncome.addEventListener("click", () => { setType("income"); renderAdd(); });
-
-swapTypeBtn.addEventListener("click", () => {
-  setType(addMode.type === "expense" ? "income" : "expense");
-  renderAdd();
-});
-
-clearAmountBtn.addEventListener("click", () => { clearAmount(); renderAdd(); });
-
-addNoteBtn.addEventListener("click", () => {
-  noteInput.classList.toggle("hidden");
-  if (!noteInput.classList.contains("hidden")) noteInput.focus();
-  renderAdd();
-});
-
-noteInput.addEventListener("input", () => {
-  addMode.note = noteInput.value;
-});
-
-dateBtn.addEventListener("click", () => {
-  datePicker.click();
-});
-timeBtn.addEventListener("click", () => {
-  timePicker.click();
-});
-
-datePicker.addEventListener("change", (e) => {
-  addMode.dateISO = e.target.value;
-  renderAdd();
-});
-timePicker.addEventListener("change", (e) => {
-  addMode.timeHM = e.target.value;
-  renderAdd();
-});
-
-categoryBtn.addEventListener("click", openCategorySheet);
-closeSheetBtn.addEventListener("click", closeCategorySheet);
-sheetBackdrop.addEventListener("click", (e) => {
-  if (e.target === sheetBackdrop) closeCategorySheet();
-});
-
-addCatConfirm.addEventListener("click", addNewCategory);
-
-filterBtn.addEventListener("click", openMonthPicker);
-closeMonthBtn.addEventListener("click", closeMonthPicker);
-monthBackdrop.addEventListener("click", (e) => {
-  if (e.target === monthBackdrop) closeMonthPicker();
-});
-applyMonthBtn.addEventListener("click", applyMonth);
-
-keypad.addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-
-  if (btn.id === "saveBtn") {
-    saveEntry();
+  if (!amount || amount <= 0){
+    alert("Please enter a valid amount.");
     return;
   }
-  const k = btn.getAttribute("data-k");
-  if (!k) return;
-  pushDigit(k);
-  renderAdd();
-});
+  if (!date){
+    alert("Please select a date.");
+    return;
+  }
 
-/** ---------- SW ---------- */
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  const d = new Date(date + "T00:00:00");
+  const tx = {
+    id: uid(),
+    type: state.typeToAdd,                 // expense|income
+    amount: Number(amount),
+    date,
+    monthKey: monthKey(d),
+    category,
+    notes,
+    createdAt: Date.now(),
+  };
+
+  state.transactions.unshift(tx);
+  saveTx();
+
+  // If user added a different month, jump to it (optional, but nice)
+  state.currentMonth = startOfMonth(d);
+
+  closeModal();
+  render();
 }
 
-/** ---------- Init ---------- */
-renderHome();
+function exportBackup(){
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    transactions: state.transactions
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "dime-offline-backup.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+function importBackup(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      if (!data || !Array.isArray(data.transactions)) throw new Error("Invalid file");
+      state.transactions = data.transactions;
+      saveTx();
+      alert("Import successful.");
+      render();
+    }catch{
+      alert("Import failed. Please choose a valid backup JSON file.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ===== Events ===== */
+
+function init(){
+  state.currentMonth = startOfMonth(new Date());
+  state.transactions = loadTx();
+
+  // month nav
+  $("prevMonth").addEventListener("click", () => {
+    const d = state.currentMonth;
+    state.currentMonth = startOfMonth(new Date(d.getFullYear(), d.getMonth()-1, 1));
+    render();
+  });
+  $("nextMonth").addEventListener("click", () => {
+    const d = state.currentMonth;
+    state.currentMonth = startOfMonth(new Date(d.getFullYear(), d.getMonth()+1, 1));
+    render();
+  });
+
+  // chart mode
+  $("modeExpenses").addEventListener("click", () => { state.chartMode = "expense"; render(); });
+  $("modeIncome").addEventListener("click", () => { state.chartMode = "income"; render(); });
+
+  // open/close modal
+  $("openAdd").addEventListener("click", openModal);
+  $("closeAdd").addEventListener("click", closeModal);
+  $("modalBackdrop").addEventListener("click", closeModal);
+
+  // type in modal
+  $("typeExpense").addEventListener("click", () => { state.typeToAdd = "expense"; setTypeButtons(); });
+  $("typeIncome").addEventListener("click", () => { state.typeToAdd = "income"; setTypeButtons(); });
+
+  // save
+  $("saveTx").addEventListener("click", addTransactionFromModal);
+
+  // export/import
+  $("exportData").addEventListener("click", exportBackup);
+  $("importFile").addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) importBackup(file);
+    e.target.value = "";
+  });
+
+  // register service worker (offline)
+  if ("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  }
+
+  render();
+}
+
+init();
