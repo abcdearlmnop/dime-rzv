@@ -5,6 +5,18 @@
 
 const STORAGE_KEY = "dime_offline_v1_transactions";
 
+const STARTING_BALANCE_KEY = "dime_offline_v1_starting_balance";
+
+function loadStartingBalance(){
+  const raw = localStorage.getItem(STARTING_BALANCE_KEY);
+  const n = raw === null ? 0 : Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function saveStartingBalance(val){
+  localStorage.setItem(STARTING_BALANCE_KEY, String(val));
+}
+
 const CATEGORIES = [
   { key: "Groceries", color: "#7ad5cb" },
   { key: "Food", color: "#ff7a78" },
