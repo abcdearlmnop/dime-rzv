@@ -3,114 +3,94 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dime-Lite (Offline)</title>
+  <title>Dime-Lite</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
-  <meta name="theme-color" content="#0b0b0f" />
+  <meta name="theme-color" content="#f6f6f6" />
 </head>
 
 <body>
-  <header class="topbar">
-    <div class="title">
-      <div class="appname">Dime-Lite</div>
-      <div class="subtitle">Offline expense tracker</div>
-    </div>
-    <button id="installBtn" class="ghost" hidden>Install</button>
-  </header>
-
-  <main class="container">
-    <section class="card">
-      <h2>Add expense</h2>
-      <form id="expenseForm" class="grid">
-        <label>
-          Amount
-          <input id="amount" type="number" step="0.01" min="0" placeholder="0.00" required />
-        </label>
-
-        <label>
-          Category
-          <select id="category"></select>
-        </label>
-
-        <label>
-          Date
-          <input id="date" type="date" required />
-        </label>
-
-        <label class="span2">
-          Note (optional)
-          <input id="note" type="text" maxlength="80" placeholder="e.g., lunch, taxi, groceries" />
-        </label>
-
-        <button class="primary span2" type="submit">Save</button>
-      </form>
-    </section>
-
-    <section class="card">
-      <div class="row space">
-        <h2>This month</h2>
-        <div class="row">
-          <button id="exportBtn" class="ghost">Export CSV</button>
-          <button id="wipeBtn" class="danger">Reset</button>
-        </div>
+  <!-- Main list screen -->
+  <main id="screenList" class="screen">
+    <header class="topbar">
+      <button class="iconBtn" id="btnSearch" aria-label="Search">🔍</button>
+      <div class="balanceWrap">
+        <div class="balanceLabel">Balance</div>
+        <div id="balanceValue" class="balanceValue">₱0.00</div>
       </div>
+      <button class="iconBtn" id="btnFilter" aria-label="Filter">▾</button>
+    </header>
 
-      <div class="stats">
-        <div class="stat">
-          <div class="label">Total spent</div>
-          <div id="monthTotal" class="value">₱0.00</div>
-        </div>
-        <div class="stat">
-          <div class="label">Top category</div>
-          <div id="topCategory" class="value">—</div>
-        </div>
-      </div>
+    <section class="feed" id="feed"></section>
 
-      <h3>By category</h3>
-      <div id="categoryBreakdown" class="list"></div>
-    </section>
-
-    <section class="card">
-      <div class="row space">
-        <h2>Budgets</h2>
-        <button id="addBudgetBtn" class="ghost">Set budgets</button>
-      </div>
-      <div id="budgetsList" class="list"></div>
-    </section>
-
-    <section class="card">
-      <div class="row space">
-        <h2>Recent expenses</h2>
-        <button id="manageCatsBtn" class="ghost">Categories</button>
-      </div>
-      <div id="expensesList" class="list"></div>
-    </section>
+    <nav class="bottomNav">
+      <button class="navBtn" aria-label="List">🗒️</button>
+      <button class="navBtn" aria-label="Stats">📊</button>
+      <button class="fab" id="btnAdd" aria-label="Add">＋</button>
+      <button class="navBtn" aria-label="Budgets">⬛</button>
+      <button class="navBtn" aria-label="Settings">⚙️</button>
+    </nav>
   </main>
 
-  <!-- Modal: Budgets -->
-  <dialog id="budgetDialog" class="dialog">
-    <form method="dialog" id="budgetForm">
-      <h3>Monthly budgets</h3>
-      <p class="muted">Set per-category monthly limits.</p>
-      <div id="budgetFields" class="list"></div>
-      <div class="row end">
-        <button class="ghost" value="cancel">Cancel</button>
-        <button class="primary" id="saveBudgetsBtn" value="default">Save</button>
+  <!-- Add transaction screen -->
+  <main id="screenAdd" class="screen hidden">
+    <header class="addTopbar">
+      <button class="iconBtn" id="btnCloseAdd" aria-label="Close">✕</button>
+
+      <div class="segmented" role="tablist">
+        <button id="tabExpense" class="segBtn active" type="button">Expense</button>
+        <button id="tabIncome" class="segBtn" type="button">Income</button>
+      </div>
+
+      <button class="iconBtn" id="btnSwapType" aria-label="Swap">⇄</button>
+    </header>
+
+    <section class="amountSection">
+      <div class="amountRow">
+        <span class="currency">₱</span>
+        <div id="amountDisplay" class="amountDisplay">0</div>
+      </div>
+
+      <div class="noteRow">
+        <button id="btnAddNote" class="noteBtn" type="button">≡ Add Note</button>
+        <button id="btnBackspace" class="ghostSquare" type="button" aria-label="Backspace">⌫</button>
+      </div>
+    </section>
+
+    <section class="metaRow">
+      <button id="btnDate" class="metaBtn" type="button">
+        <span class="metaIcon">📅</span>
+        <span id="dateLabel">Today</span>
+        <span id="timeLabel" class="metaRight">--:--</span>
+      </button>
+
+      <button id="btnCategory" class="metaBtn" type="button">
+        <span class="metaIcon">⠿</span>
+        <span id="categoryLabel">Category</span>
+      </button>
+    </section>
+
+    <section class="keypad" id="keypad"></section>
+  </main>
+
+  <!-- Modals -->
+  <dialog id="noteDialog" class="dialog">
+    <form method="dialog" class="dialogCard">
+      <h3>Add note</h3>
+      <input id="noteInput" type="text" maxlength="80" placeholder="e.g., groceries, salary..." />
+      <div class="dialogActions">
+        <button class="btnGhost" value="cancel">Cancel</button>
+        <button id="noteSave" class="btnPrimary" value="default">Save</button>
       </div>
     </form>
   </dialog>
 
-  <!-- Modal: Categories -->
-  <dialog id="catsDialog" class="dialog">
-    <form method="dialog" id="catsForm">
-      <h3>Categories</h3>
-      <div class="row">
-        <input id="newCatName" type="text" placeholder="New category name" maxlength="24" />
-        <button id="addCatBtn" class="primary" value="default">Add</button>
-      </div>
-      <div id="catsList" class="list"></div>
-      <div class="row end">
-        <button class="ghost" value="cancel">Close</button>
+  <dialog id="categoryDialog" class="dialog">
+    <form method="dialog" class="dialogCard">
+      <h3>Category</h3>
+      <div id="categoryGrid" class="catGrid"></div>
+      <div class="dialogActions">
+        <button class="btnGhost" value="cancel">Close</button>
       </div>
     </form>
   </dialog>
