@@ -2,92 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dime-Lite</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css">
-  <meta name="theme-color" content="#f6f6f6" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Dime-ish (Simple)</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <meta name="theme-color" content="#0b0b0f" />
 </head>
 
 <body>
-  <!-- Main list screen -->
-  <main id="screenList" class="screen">
+  <div class="app">
+    <!-- Header -->
     <header class="topbar">
-      <button class="iconBtn" id="btnSearch" aria-label="Search">🔍</button>
-      <div class="balanceWrap">
-        <div class="balanceLabel">Balance</div>
-        <div id="balanceValue" class="balanceValue">₱0.00</div>
+      <button class="iconBtn" id="prevMonthBtn" aria-label="Previous month">‹</button>
+
+      <div class="topbarCenter">
+        <div class="monthTitle" id="monthTitle">Month YYYY</div>
+        <div class="subRow">
+          <input id="datePicker" class="datePicker" type="date" />
+          <button class="linkBtn" id="todayBtn" type="button">Today</button>
+        </div>
       </div>
-      <button class="iconBtn" id="btnFilter" aria-label="Filter">▾</button>
+
+      <button class="iconBtn" id="nextMonthBtn" aria-label="Next month">›</button>
     </header>
 
-    <section class="feed" id="feed"></section>
-
-  </main>
-
-  <!-- Add transaction screen -->
-  <main id="screenAdd" class="screen hidden">
-    <header class="addTopbar">
-      <button class="iconBtn" id="btnCloseAdd" aria-label="Close">✕</button>
-
-      <div class="segmented" role="tablist">
-        <button id="tabExpense" class="segBtn active" type="button">Expense</button>
-        <button id="tabIncome" class="segBtn" type="button">Income</button>
+    <!-- Summary -->
+    <section class="summary">
+      <div class="summaryCard">
+        <div class="label">Month total</div>
+        <div class="value" id="monthTotal">₱0.00</div>
       </div>
-
-      <button class="iconBtn" id="btnSwapType" aria-label="Swap">⇄</button>
-    </header>
-
-    <section class="amountSection">
-      <div class="amountRow">
-        <span class="currency">₱</span>
-        <div id="amountDisplay" class="amountDisplay">0</div>
-      </div>
-
-      <div class="noteRow">
-        <button id="btnAddNote" class="noteBtn" type="button">≡ Add Note</button>
-        <button id="btnBackspace" class="ghostSquare" type="button" aria-label="Backspace">⌫</button>
+      <div class="summaryCard">
+        <div class="label">Selected day</div>
+        <div class="value" id="dayTotal">₱0.00</div>
       </div>
     </section>
 
-    <section class="metaRow">
-      <button id="btnDate" class="metaBtn" type="button">
-        <span class="metaIcon">📅</span>
-        <span id="dateLabel">Today</span>
-        <button id="timeBtn" type="button" class="timeBtn"><span id="timeLabel">--:--</span></button>
-      </button>
+    <!-- Main layout -->
+    <main class="layout">
+      <!-- Left: Month day list (Dime-ish) -->
+      <section class="panel daysPanel">
+        <div class="panelTitle">Days</div>
+        <div class="daysList" id="daysList"></div>
+      </section>
 
-      <button id="btnCategory" class="metaBtn" type="button">
-        <span class="metaIcon">⠿</span>
-        <span id="categoryLabel">Category</span>
-      </button>
-    </section>
+      <!-- Right: Day details -->
+      <section class="panel detailsPanel">
+        <div class="detailsHeader">
+          <div>
+            <div class="panelTitle" id="selectedDateTitle">Selected date</div>
+            <div class="muted" id="selectedDateSub">—</div>
+          </div>
+          <button class="primaryBtn" id="addBtn" type="button">+ Add</button>
+        </div>
 
-    <section class="keypad" id="keypad"></section>
-  </main>
+        <div class="txList" id="txList"></div>
+        <div class="emptyState" id="emptyState">No transactions yet.</div>
+      </section>
+    </main>
+  </div>
 
-  <!-- Modals -->
-  <dialog id="noteDialog" class="dialog">
-    <form method="dialog" class="dialogCard">
-      <h3>Add note</h3>
-      <input id="noteInput" type="text" maxlength="80" placeholder="e.g., groceries, salary..." />
-      <div class="dialogActions">
-        <button class="btnGhost" value="cancel">Cancel</button>
-        <button id="noteSave" class="btnPrimary" value="default">Save</button>
+  <!-- Modal -->
+  <div class="modalBackdrop hidden" id="modalBackdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modalTop">
+        <div class="modalTitle">Add transaction</div>
+        <button class="iconBtn" id="closeModalBtn" aria-label="Close">×</button>
       </div>
-    </form>
-  </dialog>
 
-  <dialog id="categoryDialog" class="dialog">
-    <form method="dialog" class="dialogCard">
-      <h3>Category</h3>
-      <div id="categoryGrid" class="catGrid"></div>
-      <div class="dialogActions">
-        <button class="btnGhost" value="cancel">Close</button>
-      </div>
-    </form>
-  </dialog>
+      <form id="txForm" class="form">
+        <label class="field">
+          <span>Type</span>
+          <select id="txType">
+            <option value="expense" selected>Expense</option>
+            <option value="income">Income</option>
+          </select>
+        </label>
 
-  <script src="app.js"></script>
+        <label class="field">
+          <span>Amount</span>
+          <input id="txAmount" type="number" inputmode="decimal" step="0.01" placeholder="0.00" required />
+        </label>
+
+        <label class="field">
+          <span>Category</span>
+          <input id="txCategory" type="text" placeholder="e.g., Food" maxlength="24" required />
+        </label>
+
+        <label class="field">
+          <span>Note (optional)</span>
+          <input id="txNote" type="text" placeholder="e.g., lunch" maxlength="40" />
+        </label>
+
+        <label class="field">
+          <span>Date</span>
+          <input id="txDate" type="date" required />
+        </label>
+
+        <div class="row">
+          <button class="ghostBtn" id="cancelBtn" type="button">Cancel</button>
+          <button class="primaryBtn" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
 </body>
 </html>
