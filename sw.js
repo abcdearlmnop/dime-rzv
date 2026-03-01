@@ -1,3 +1,5 @@
+// sw version bump v8
+
 const CACHE_NAME = "dime-lite-v7"; // <-- bump this number every time you update files
 
 const ASSETS = [
