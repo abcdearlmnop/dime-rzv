@@ -346,3 +346,72 @@ dialog::backdrop{ background: rgba(0,0,0,.45); }
   place-items:center;
   font-size:20px;
 }
+/* --- DIME-LIKE KEYPAD LAYOUT --- */
+
+/* Make the add screen behave like the iOS layout:
+   big keypad pinned to bottom area, consistent spacing */
+#screenAdd{
+  background: var(--bg);
+}
+
+/* Keep amount centered, meta row above keypad */
+.amountSection{
+  padding: 26px 16px 14px;
+}
+
+.metaRow{
+  padding: 10px 16px 12px;
+}
+
+/* Keypad wrapper: bigger, Dime spacing */
+.keypad{
+  margin-top: auto;
+  padding: 0 16px 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+/* Key buttons: big rounded rectangles like Dime */
+.key{
+  height: 86px;
+  border: none;
+  background: #ededf0;
+  border-radius: 18px;
+  font-size: 40px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ✅ button look/placement */
+.keyOk{
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 34px;
+}
+
+/* Dot should look like iOS small dot */
+.keyDot{
+  font-size: 42px;
+}
+
+/* Improve press feedback */
+.key:active{
+  transform: scale(0.985);
+}
+
+/* Time button inside date pill */
+.timeBtn{
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin-left: auto;
+  font: inherit;
+  cursor: pointer;
+  font-weight: 800;
+  color: #111;
+  opacity: .85;
+}
